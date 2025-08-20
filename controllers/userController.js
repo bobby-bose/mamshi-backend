@@ -1,0 +1,330 @@
+const User = require('../models/userModel');
+const asyncErrorHandler = require('../middlewares/asyncErrorHandler');
+const sendToken = require('../utils/sendToken');
+const ErrorHandler = require('../utils/errorHandler');
+
+const crypto = require('crypto');
+const cloudinary = require('cloudinary');
+
+// Register User
+// Register User
+exports.registerUser = asyncErrorHandler(async (req, res, next) => {
+    const { name, email, gender, password, avatar } = req.body;
+
+    let avatarData = undefined;
+    let avatarContentType = undefined;
+
+    if (avatar) {
+        // if avatar is sent as base64 string like "data:image/png;base64,...."
+        const matches = avatar.match(/^data:(.+);base64,(.+)$/);
+        if (!matches || matches.length !== 3) {
+            return next(new ErrorHandler("Invalid image format", 400));
+        }
+        avatarContentType = matches[1];
+        avatarData = Buffer.from(matches[2], "base64");
+    }
+
+    const user = await User.create({
+        name,
+        email,
+        gender,
+        password,
+        avatar: avatarData
+            ? { data: avatarData, contentType: avatarContentType }
+            : undefined
+    });
+
+    sendToken(user, 201, res);
+});
+
+
+exports.otp = asyncErrorHandler(async (req, res, next) => {
+  const { mobileNumber, otp } = req.body;
+
+  if (!mobileNumber || !otp) {
+    return next(new ErrorHandler("Please provide mobile number and OTP", 400));
+  }
+
+  // Step 1: Validate OTP
+  if (otp !== "000") {
+    return next(new ErrorHandler("Invalid OTP", 401));
+  }
+
+  // Step 2: Check if user already exists
+  let user = await User.findOne({ mobileNumber });
+
+  if (!user) {
+    // If user doesn’t exist, create a new one with placeholder values
+    user = await User.create({
+      name: "New User",
+      mobileNumber,
+      gender: "unknown",
+      email:'ddfdfdf'
+    });
+  }
+
+  // Step 3: Send success response
+  res.status(200).json({
+    success: true,
+    message: "OTP verified successfully",
+    user,
+  });
+});
+
+
+
+// Login User
+exports.loginUser = asyncErrorHandler(async (req, res, next) => {
+    const { mobileNumber } = req.body;
+
+    if(!mobileNumber) {
+        return next(new ErrorHandler("Please Enter Mobile Number", 400));
+    }
+
+    const user = await User.findOne({ mobileNumber });
+
+    if(!user) {
+        return next(new ErrorHandler("User Not Found", 404));
+    }
+
+
+
+    sendToken(user, 201, res);
+});
+
+// Logout User
+exports.logoutUser = asyncErrorHandler(async (req, res, next) => {
+    sessionStorage.removeItem("mobileNumber");
+    res.cookie("token", null, {
+        expires: new Date(Date.now()),
+        httpOnly: true,
+    });
+
+    res.status(200).json({
+        success: true,
+        message: "Logged Out",
+    });
+});
+
+
+// GET user by mobile number
+exports.getUserByMobileNumber = async (req, res) => {
+  try {
+    const { mobileNumber } = req.params; // or req.query if passed as query
+
+    if (!mobileNumber) {
+      return res.status(400).json({ success: false, message: "Mobile number is required" });
+    }
+
+    const user = await User.findOne({ mobileNumber });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // return only needed fields
+    const { firstName, lastName, name, email, gender, address, mobileNumber: mobile } = user;
+console.log("User Details:", user);
+    return res.status(200).json({
+      success: true,
+      user: { firstName, lastName, name, email, gender, address, mobileNumber: mobile }
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Server Error" });
+  }
+};
+
+
+
+// Update User Details based on Mobile Number
+exports.updateUserDetails = asyncErrorHandler(async (req, res, next) => {
+    const { firstName, lastName, email, mobileNumber, gender, address } = req.body;
+
+    if (!mobileNumber) {
+        return next(new ErrorHandler("Please provide a mobile number", 400));
+    }
+
+    // Combine firstName and lastName into name
+    const name = firstName + (lastName ? ` ${lastName}` : "");
+
+    const updatedUser = await User.findOneAndUpdate(
+        { mobileNumber },   // find by mobileNumber
+        { firstName, lastName, name, email, gender, address },
+        { new: true, runValidators: true }
+    );
+
+    if (!updatedUser) {
+        return next(new ErrorHandler("User not found with this mobile number", 404));
+    }
+
+    res.status(200).json({
+        success: true,
+        updatedUser,
+    });
+});
+
+
+
+// Forgot Password
+exports.forgotPassword = asyncErrorHandler(async (req, res, next) => {
+    
+    const user = await User.findOne({email: req.body.email});
+
+    if(!user) {
+        return next(new ErrorHandler("User Not Found", 404));
+    }
+
+    const resetToken = await user.getResetPasswordToken();
+
+    await user.save({ validateBeforeSave: false });
+
+    // const resetPasswordUrl = `${req.protocol}://${req.get("host")}/password/reset/${resetToken}`;
+    const resetPasswordUrl = `https://${req.get("host")}/password/reset/${resetToken}`;
+
+    // const message = `Your password reset token is : \n\n ${resetPasswordUrl}`;
+
+   
+});
+
+// Reset Password
+exports.resetPassword = asyncErrorHandler(async (req, res, next) => {
+
+    // create hash token
+    const resetPasswordToken = crypto.createHash("sha256").update(req.params.token).digest("hex");
+
+    const user = await User.findOne({ 
+        resetPasswordToken,
+        resetPasswordExpire: { $gt: Date.now() }
+    });
+
+    if(!user) {
+        return next(new ErrorHandler("Invalid reset password token", 404));
+    }
+
+    user.password = req.body.password;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
+
+    await user.save();
+    sendToken(user, 200, res);
+});
+
+// Update Password
+exports.updatePassword = asyncErrorHandler(async (req, res, next) => {
+
+    const user = await User.findById(req.user.id).select("+password");
+
+    const isPasswordMatched = await user.comparePassword(req.body.oldPassword);
+
+    if(!isPasswordMatched) {
+        return next(new ErrorHandler("Old Password is Invalid", 400));
+    }
+
+    user.password = req.body.newPassword;
+    await user.save();
+    sendToken(user, 201, res);
+});
+
+// Update User Profile
+exports.updateProfile = asyncErrorHandler(async (req, res, next) => {
+
+    const newUserData = {
+        name: req.body.name,
+        email: req.body.email,
+    }
+
+    if(req.body.avatar !== "") {
+        const user = await User.findById(req.user.id);
+
+        const imageId = user.avatar.public_id;
+
+        await cloudinary.v2.uploader.destroy(imageId);
+
+        const myCloud = await cloudinary.v2.uploader.upload(req.body.avatar, {
+            folder: "avatars",
+            width: 150,
+            crop: "scale",
+        });
+
+        newUserData.avatar = {
+            public_id: myCloud.public_id,
+            url: myCloud.secure_url,
+        }
+    }
+
+    await User.findByIdAndUpdate(req.user.id, newUserData, {
+        new: true,
+        runValidators: true,
+        useFindAndModify: true,
+    });
+
+    res.status(200).json({
+        success: true,
+    });
+});
+
+// ADMIN DASHBOARD
+
+// Get All Users --ADMIN
+exports.getAllUsers = asyncErrorHandler(async (req, res, next) => {
+
+    const users = await User.find();
+
+    res.status(200).json({
+        success: true,
+        users,
+    });
+});
+
+// Get Single User Details --ADMIN
+exports.getSingleUser = asyncErrorHandler(async (req, res, next) => {
+
+    const user = await User.findById(req.params.id);
+
+    if(!user) {
+        return next(new ErrorHandler(`User doesn't exist with id: ${req.params.id}`, 404));
+    }
+
+    res.status(200).json({
+        success: true,
+        user,
+    });
+});
+
+// Update User Role --ADMIN
+exports.updateUserRole = asyncErrorHandler(async (req, res, next) => {
+
+    const newUserData = {
+        name: req.body.name,
+        email: req.body.email,
+        gender: req.body.gender,
+        role: req.body.role,
+    }
+
+    await User.findByIdAndUpdate(req.params.id, newUserData, {
+        new: true,
+        runValidators: true,
+        useFindAndModify: false,
+    });
+
+    res.status(200).json({
+        success: true,
+    });
+});
+
+// Delete Role --ADMIN
+exports.deleteUser = asyncErrorHandler(async (req, res, next) => {
+
+    const user = await User.findById(req.params.id);
+
+    if(!user) {
+        return next(new ErrorHandler(`User doesn't exist with id: ${req.params.id}`, 404));
+    }
+
+    await user.remove();
+
+    res.status(200).json({
+        success: true
+    });
+});
