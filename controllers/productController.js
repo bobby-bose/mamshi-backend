@@ -8,13 +8,13 @@ const Cart = require('../models/cart');
 // Get All Products
 exports.getAllProducts = asyncErrorHandler(async (req, res, next) => {
 
-    const resPerPage = 8;
+  
     const productsCount = await Product.countDocuments();
 
     const apiFeatures = new SearchFeatures(Product.find(), req.query)
         .search()
         .filter()
-        .pagination(resPerPage);
+        
 
     let products = await apiFeatures.query;
     console.log("the products fetched",products);
@@ -23,7 +23,7 @@ exports.getAllProducts = asyncErrorHandler(async (req, res, next) => {
         success: true,
         products,
         productsCount,
-        resPerPage
+        
     });
 });
 

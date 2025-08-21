@@ -34,33 +34,42 @@ router.route('/product/:productId').get(async (req, res, next) => {
     }
 });
 router.route('/wishlist/:productId/:mobileNumber').post(async (req, res, next) => {
-    try {
-        const { productId, mobileNumber } = req.params;
-        if (!productId || !mobileNumber) {
-            return next(new ErrorHandler("Product ID and Mobile Number are required", 400));
-        }
-        // ✅ Check if Cart model is loaded
-        if (!Cart || typeof Cart.create !== "function") {
-            console.error("MongoDB Model 'Cart' is not loaded correctly.");
-            return next(new ErrorHandler("Database model not found", 500));
-        }
+  try {
+    const { productId, mobileNumber } = req.params;
+    const { size } = req.body;   // 👈 get size from body
 
-        const newWishlistItem = await Cart.create({
-            productId,
-            mobileNumber
-        });
-
-        res.status(201).json({
-            success: true,
-            message: "Product added to wishlist successfully",
-            data: newWishlistItem
-        });
-
-    } catch (err) {
-        console.error("Exception while adding product to wishlist:", err.message);
-        return next(new ErrorHandler("Failed to add product to wishlist", 500));
+    if (!productId || !mobileNumber) {
+      return next(new ErrorHandler("Product ID and Mobile Number are required", 400));
     }
+
+    if (!size) {
+      return next(new ErrorHandler("Size is required", 400));
+    }
+
+    // ✅ Check if Cart model is loaded
+    if (!Cart || typeof Cart.create !== "function") {
+      console.error("MongoDB Model 'Cart' is not loaded correctly.");
+      return next(new ErrorHandler("Database model not found", 500));
+    }
+
+    const newWishlistItem = await Cart.create({
+      productId,
+      mobileNumber,
+      size   // 👈 store size
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Product added to wishlist successfully",
+      data: newWishlistItem
+    });
+
+  } catch (err) {
+    console.error("Exception while adding product to wishlist:", err.message);
+    return next(new ErrorHandler("Failed to add product to wishlist", 500));
+  }
 });
+
 router.route('/wishlist/:wishlistId').delete(async (req, res, next) => {
     try {
         const { wishlistId } = req.params;
