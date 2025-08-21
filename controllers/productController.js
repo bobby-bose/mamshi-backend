@@ -17,6 +17,7 @@ exports.getAllProducts = asyncErrorHandler(async (req, res, next) => {
         .pagination(resPerPage);
 
     let products = await apiFeatures.query;
+    console.log("the products fetched",products);
 
     res.status(200).json({
         success: true,

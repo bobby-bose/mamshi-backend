@@ -7,7 +7,7 @@ const crypto = require('crypto');
 const userSchema = new mongoose.Schema({
     firstName: {
         type: String,
-        required: [true, "Please Enter Your First Name"],
+       
     },
     lastName: {
         type: String,
@@ -19,9 +19,9 @@ const userSchema = new mongoose.Schema({
     },
     email: {
         type: String,
-        required: [true, "Please Enter Your Email"],
+       
         unique: true,
-        validate: [validator.isEmail, "Please Enter a valid Email"]
+        
     },
     mobileNumber: {
         type: String,
@@ -34,11 +34,11 @@ const userSchema = new mongoose.Schema({
     },
     gender: {
         type: String,
-        required: [true, "Please Enter Gender"]
+        
     },
     password: {
         type: String,
-        required: [true, "Please Enter Your Password"],
+        
         minlength: 6,
         select: false // don’t return password by default
     },
