@@ -1,5 +1,5 @@
 const express = require('express');
-const { registerUser, loginUser, logoutUser, getUserByMobileNumber, forgotPassword, resetPassword, updatePassword, updateProfile, getAllUsers, getSingleUser, updateUserRole, deleteUser,otp,updateUserDetails  } = require('../controllers/userController');
+const { registerUser, loginUser, logoutUser, getUserByMobileNumber, forgotPassword, resetPassword, updatePassword, updateProfile, getAllUsers, getSingleUser, updateUserRole, deleteUser,otp,updateUserDetails,sendOtp  } = require('../controllers/userController');
 
 
 
@@ -8,6 +8,7 @@ const router = express.Router();
 router.route('/register').post(registerUser);
 router.route('/login').post(loginUser);
 router.route('/logout').get(logoutUser);
+router.route('/send-otp-email').post(sendOtp);
 router.route('/verify-otp').post(otp);
 
 

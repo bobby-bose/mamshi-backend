@@ -69,7 +69,7 @@ exports.addOrders = asyncErrorHandler(async (req, res, next) => {
     // Here you can implement logic to add the order to the cart or database
     // For now, we will just return a success message
     Order.create({
-        productId,
+        product,
         mobileNumber,
         quantity: 1, // Assuming a default quantity of 1
     });
@@ -79,10 +79,8 @@ exports.addOrders = asyncErrorHandler(async (req, res, next) => {
         message: "Order added successfully",
         product: {
             id: product._id,
-            name: product.name,
-            price: product.price,
-            quantity,
-            mobileNumber
+            
+           
         }
     });
 });
@@ -104,23 +102,32 @@ exports.myOrders = asyncErrorHandler(async (req, res, next) => {
 
 
 // Get All Orders ---ADMIN
+// Get all unique customers who have ordered ---ADMIN
 exports.getAllOrders = asyncErrorHandler(async (req, res, next) => {
+    // Find all orders and group them by mobileNumber to get unique customers
+    const uniqueCustomers = await Order.aggregate([
+        {
+            $group: {
+                _id: "$mobileNumber"
+            }
+        }
+    ]);
 
+    // The count of unique customers is the length of the resulting array
+    const numberOfCustomers = uniqueCustomers.length;
+
+    // To get the total order count and amount for all customers (optional, but good practice)
     const orders = await Order.find();
-
-    if (!orders) {
-        return next(new ErrorHandler("Order Not Found", 404));
-    }
-
     let totalAmount = 0;
     orders.forEach((order) => {
-        totalAmount += order.totalPrice;
+        totalAmount += order.totalPrice; // Assuming totalPrice exists in your Order model
     });
 
     res.status(200).json({
         success: true,
-        orders,
+        orders, // All orders are still returned for the admin dashboard
         totalAmount,
+        numberOfCustomers, // This is the new, requested field
     });
 });
 

@@ -1,9 +1,10 @@
 const express = require('express');
-const { getAllProducts, getProductDetails, updateProduct, deleteProduct, getProductReviews, deleteReview, createProductReview, createProduct, getAdminProducts, getProducts,wishlist } = require('../controllers/productController');
+const { getAllProducts, getProductDetails, updateProduct, deleteProduct, getProductReviews, deleteReview, createProductReview, createProduct, getAdminProducts, getProducts,createQuestion,getQuestions,getReviews, createReview } = require('../controllers/productController');
 const Cart = require('../models/cart');
 const asyncErrorHandler = require('../middlewares/asyncErrorHandler');
 const ErrorHandler = require('../utils/errorHandler');
 const productModel = require('../models/productModel');
+
 
 const router = express.Router();
 
@@ -94,8 +95,13 @@ router.route('/wishlist/:wishlistId').delete(async (req, res, next) => {
         return next(new ErrorHandler("Failed to delete wishlist item", 500));
     }
 });
+router.route('/products/questions/:productId/:mobileNumber').post(createQuestion);
 
+router.route('/products/reviews/:productId/:mobileNumber').post(createReview);
+router.route('/reviews/:productId').get(getReviews);
+router.route('/questions/:productId').get(getQuestions);
 router.route('/products/all').get(getProducts);
+router.route('/products/').get(getProducts);
 
 router.route('/admin/products').get( getAdminProducts);
 router.route('/admin/product/new').post( createProduct);

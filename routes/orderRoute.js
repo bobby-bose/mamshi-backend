@@ -9,7 +9,8 @@ router.route('/order/:id').get(isAuthenticatedUser, getSingleOrderDetails);
 router.route('/orders/me').get(isAuthenticatedUser, myOrders);
 router.route('/orders/productId/mobilenumber').post( addOrders);
 
-router.route('/admin/orders').get(isAuthenticatedUser, authorizeRoles("admin"), getAllOrders);
+router.route('/orders').get( getAllOrders);
+
 
 router.route('/admin/order/:id')
     .put(isAuthenticatedUser, authorizeRoles("admin"), updateOrder)

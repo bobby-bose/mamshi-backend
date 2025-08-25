@@ -4,11 +4,12 @@ const SearchFeatures = require('../utils/searchFeatures');
 const ErrorHandler = require('../utils/errorHandler');
 const cloudinary = require('cloudinary');
 const Cart = require('../models/cart');
+const Question = require('../models/questionModel');
+const Reviews = require('../models/reviewModel');
 
 // Get All Products
 exports.getAllProducts = asyncErrorHandler(async (req, res, next) => {
 
-  
     const productsCount = await Product.countDocuments();
 
     const apiFeatures = new SearchFeatures(Product.find(), req.query)
@@ -27,11 +28,91 @@ exports.getAllProducts = asyncErrorHandler(async (req, res, next) => {
     });
 });
 
-// router.route('/wishlist/productId/mobileNumber').post(wishlist);
+exports.createQuestion = async (req, res, next) => {
+    console.log("Creating question...");
+  try {
+
+    const { productId, mobileNumber } = req.params;
+    const { question } = req.body;
+console.log("Received data:", { productId, mobileNumber, question });
+    if (!productId || !mobileNumber || !question) {
+      return res.status(400).json({
+        success: false,
+        message: 'Product ID, mobile number, and question are required.',
+      });
+    }
+    const product = await Product.findById(productId);
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found.',
+      });
+    }
+    console.log("Creating question for product:", productId, "by user:", mobileNumber);
+
+    const newQuestion = await Question.create({
+      product: productId,
+      user: mobileNumber,
+      question: question,
+    });
+    console.log("Question created:", newQuestion);
+
+    res.status(201).json({
+      success: true,
+      data: newQuestion,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create question.',
+      error: error.message,
+    });
+  }
+};
 
 
+exports.createReview = async (req, res, next) => {
+    console.log("Creating Review...");
+  try {
+    const { productId, mobileNumber } = req.params;
+    const { review } = req.body;
+console.log("Received data:", { productId, mobileNumber, review });
+    if (!productId || !mobileNumber || !review) {
+      return res.status(400).json({
+        success: false,
+        message: 'Product ID, mobile number, and review are required.',
+      });
+    }
+    const product = await Product.findById(productId);
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found.',
+      });
+    }
+    console.log("Creating Review for product:", productId, "by user:", mobileNumber);
 
-// Get All Products ---Product Sliders
+    const newReview = await Reviews.create({
+      product: productId,
+      user: mobileNumber,
+      review: review,
+    });
+    console.log("Review created:", newReview);
+
+    res.status(201).json({
+      success: true,
+      data: newReview,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create newReview.',
+      error: error.message,
+    });
+  }
+};
+
+
 exports.getProducts = asyncErrorHandler(async (req, res, next) => {
     const products = await Product.find();
 
@@ -53,6 +134,32 @@ exports.getProductDetails = asyncErrorHandler(async (req, res, next) => {
     res.status(200).json({
         success: true,
         product,
+    });
+});
+
+
+// Get Product Details
+exports.getReviews = asyncErrorHandler(async (req, res, next) => {
+
+    const reviews = await Reviews.find({product:req.params.productId});
+
+    if (!reviews) {
+        return next(new ErrorHandler("Reviews Not Found", 404));
+    }
+    res.status(200).json({
+        success: true,
+        reviews,
+    });
+});
+
+exports.getQuestions = asyncErrorHandler(async (req, res, next) => {
+    const questions = await Question.find({product:req.params.productId});
+    if (!questions) {
+        return next(new ErrorHandler("Questions Not Found", 404));
+    }
+    res.status(200).json({
+        success: true,
+        questions,
     });
 });
 

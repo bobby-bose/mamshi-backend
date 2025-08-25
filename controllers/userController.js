@@ -5,6 +5,7 @@ const ErrorHandler = require('../utils/errorHandler');
 
 const crypto = require('crypto');
 const cloudinary = require('cloudinary');
+const otpStore = new Map();
 
 // Register User
 // Register User
@@ -37,38 +38,108 @@ exports.registerUser = asyncErrorHandler(async (req, res, next) => {
     sendToken(user, 201, res);
 });
 
+exports.sendOtp = asyncErrorHandler(async (req, res, next) => {
+  const { email } = req.body;
 
-exports.otp = asyncErrorHandler(async (req, res, next) => {
-  const { mobileNumber, otp } = req.body;
-
-  if (!mobileNumber || !otp) {
-    return next(new ErrorHandler("Please provide mobile number and OTP", 400));
+  if (!email) {
+    return next(new ErrorHandler("Please provide a Email Address", 400));
   }
 
-  // Step 1: Validate OTP
-  if (otp !== "000") {
-    return next(new ErrorHandler("Invalid OTP", 401));
+  // Generate OTP
+  const otp = Math.floor(1000 + Math.random() * 9000).toString();
+
+  const nodemailer = require('nodemailer');
+
+function generateOTP() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+async function sendOTP(email) {
+  // Create a Nodemailer transporter using the provided credentials.
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: 'bobbykboseoffice@gmail.com',
+      pass: 'qlxo uaqf zqix kndx', // Your App Password
+    },
+  });
+
+  const otp = generateOTP();
+  const otpExpiration = Date.now() + 5 * 60 * 1000; // OTP valid for 5 minutes
+  otpStore.set(email, { otp, otpExpiration });
+
+  const mailOptions = {
+    from: 'bobbykboseoffice@gmail.com',
+    to: email,
+    subject: 'Your OTP Code For Slouch Give Away',
+    text: `Your OTP Code is: ${otp}`,
+    html: `<b>Your OTP is:</b> ${otp}`,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`OTP successfully sent to ${email}`);
+      otpStore.set(email, { otp, otpExpiration });
+    return { success: true, otp: otp };
+  } catch (error) {
+    console.error(`Error sending OTP: ${error}`);
+     otpStore.delete(email);
+    return { success: false, error: error };
   }
+}
 
-  // Step 2: Check if user already exists
-  let user = await User.findOne({ mobileNumber });
+// Example usage:
+// Replace 'recipient_email@example.com' with the actual email you want to send the OTP to.
+sendOTP(email);
 
-  if (!user) {
-    // If user doesn’t exist, create a new one with placeholder values
-    user = await User.create({
-      name: "New User",
-      mobileNumber,
-      gender: "unknown",
-      email:'ddfdfdf'
-    });
-  }
-
-  // Step 3: Send success response
   res.status(200).json({
     success: true,
-    message: "OTP verified successfully",
-    user,
+    message: "OTP sent successfully",
+    otp, // Include OTP in response for testing purposes
   });
+});
+
+exports.otp = asyncErrorHandler(async (req, res, next) => {
+    const { email, otp } = req.body;
+
+
+    if (!email || !otp) {
+        return next(new ErrorHandler("Please provide email and OTP", 400));
+    }
+
+    // Get the stored OTP and its expiration from the otpStore
+    const storedData = otpStore.get(email);
+
+    // Check if the OTP exists and is not expired
+    if (!storedData || storedData.otp !== otp || storedData.otpExpiration < Date.now()) {
+        return next(new ErrorHandler("Invalid or expired OTP", 400));
+    }
+
+    // If OTP is valid, remove it from the store to prevent reuse
+    otpStore.delete(email);
+
+    // Assuming you want to find/create a user here, using mobileNumber from the body
+//     accept the parameter email from the request body and copy to a variable mobileNumber
+
+    const mobileNumber = req.body.email;
+
+    let user = await User.findOne({ mobileNumber });
+
+    if (!user) {
+        // If user doesn't exist, create a new one
+        user = await User.create({
+            name: "New User",
+            mobileNumber,
+            email,
+        });
+    }
+
+    // Step 3: Send success response
+    res.status(200).json({
+        success: true,
+        message: "OTP verified successfully",
+        user,
+    });
 });
 
 
@@ -131,6 +202,7 @@ console.log("User Details:", user);
     });
   } catch (err) {
     console.error(err);
+    
     return res.status(500).json({ success: false, message: "Server Error" });
   }
 };
@@ -139,23 +211,23 @@ console.log("User Details:", user);
 
 // Update User Details based on Mobile Number
 exports.updateUserDetails = asyncErrorHandler(async (req, res, next) => {
-    const { firstName, lastName, email, mobileNumber, gender, address } = req.body;
+    const { id,firstName, lastName, email, mobileNumber, gender, address } = req.body;
 
-    if (!mobileNumber) {
-        return next(new ErrorHandler("Please provide a mobile number", 400));
+    if (!id) {
+        return next(new ErrorHandler("Please provide a user ID", 400));
     }
 
     // Combine firstName and lastName into name
     const name = firstName + (lastName ? ` ${lastName}` : "");
 
     const updatedUser = await User.findOneAndUpdate(
-        { mobileNumber },   // find by mobileNumber
-        { firstName, lastName, name, email, gender, address },
+        { _id: id },   // find by user ID
+        { firstName, lastName, name, email,mobileNumber, gender, address },
         { new: true, runValidators: true }
     );
 
     if (!updatedUser) {
-        return next(new ErrorHandler("User not found with this mobile number", 404));
+        return next(new ErrorHandler("User not found with this ID", 404));
     }
 
     res.status(200).json({
