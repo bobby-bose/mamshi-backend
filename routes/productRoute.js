@@ -1,5 +1,5 @@
 const express = require('express');
-const { getAllProducts, getProductDetails, updateProduct, deleteProduct, getProductReviews, deleteReview, createProductReview, createProduct, getAdminProducts, getProducts,createQuestion,getQuestions,getReviews, createReview } = require('../controllers/productController');
+const { getAllProducts, getProductDetails, updateProduct, deleteProduct, getProductReviews, deleteReview, createProductReview,updateStock, createProduct, getAdminProducts, getProducts,createQuestion,getQuestions,getReviews, createReview } = require('../controllers/productController');
 const Cart = require('../models/cart');
 const asyncErrorHandler = require('../middlewares/asyncErrorHandler');
 const ErrorHandler = require('../utils/errorHandler');
@@ -101,6 +101,7 @@ router.route('/products/reviews/:productId/:mobileNumber').post(createReview);
 router.route('/reviews/:productId').get(getReviews);
 router.route('/questions/:productId').get(getQuestions);
 router.route('/products/all').get(getProducts);
+router.route("/products/:productId/stock").put(updateStock);
 router.route('/products/').get(getProducts);
 
 router.route('/admin/products').get( getAdminProducts);

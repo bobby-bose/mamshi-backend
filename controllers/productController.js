@@ -28,6 +28,31 @@ exports.getAllProducts = asyncErrorHandler(async (req, res, next) => {
     });
 });
 
+exports.updateStock = async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const { stock } = req.body;
+
+    if (stock < 0) {
+      return res.status(400).json({ message: "Stock cannot be negative" });
+    }
+
+    const updatedProduct = await Product.findByIdAndUpdate(
+      productId,
+      { stock },
+      { new: true }
+    );
+
+    if (!updatedProduct) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    res.json({ message: "Stock updated successfully", product: updatedProduct });
+  } catch (error) {
+    res.status(500).json({ message: "Error updating stock", error });
+  }
+};
+
 exports.createQuestion = async (req, res, next) => {
     console.log("Creating question...");
   try {

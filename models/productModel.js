@@ -10,6 +10,8 @@ const productSchema = new mongoose.Schema({
     M: { type: Boolean, default: false },
     L: { type: Boolean, default: false },
     XL: { type: Boolean, default: false },
+    colors: { type: [String], default: [] }, // Example: ["red", "blue", "black"]
+    stock: { type: Number, default: 0 }      // Remaining stock count
 });
 
 module.exports = mongoose.model('Product', productSchema);
