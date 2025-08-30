@@ -8,7 +8,7 @@ const app = express();
 
 app.use(cors({
   origin: [
-    "https://transcendent-eclair-407489.netlify.app", // your deployed frontend
+    "https://slouch.netlify.app", // your deployed frontend
     "http://localhost:3000" // optional: for local dev
   ],
   credentials: true,
