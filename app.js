@@ -7,10 +7,13 @@ const cors = require('cors');
 const app = express();
 
 app.use(cors({
-  origin: ["http://localhost:3000","http://netflix-app.com"],
+  origin: [
+    "https://transcendent-eclair-407489.netlify.app", // your deployed frontend
+    "http://localhost:3000" // optional: for local dev
+  ],
   credentials: true,
-  methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
-  allowedHeaders: ["Content-Type","Authorization"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
 
