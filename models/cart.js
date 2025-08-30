@@ -6,12 +6,19 @@ const cartSchema = new mongoose.Schema({
         required: true
     },
     mobileNumber: {
-        type: String,   // kept as string to handle leading zeros or country codes
+        type: String,   // handle leading zeros or country codes
         required: true
     },
     size: {
-        type: String,   // e.g. "S", "M", "L", "XL" or "42", "8 UK" etc.
-        required: true  // ✅ make required since user must pick a size
+        type: String,   // e.g. "S", "M", "L", "XL"
+        required: true
+    },
+    color: {
+        type: String,   // optional
+    },
+    count: {
+        type: Number,   // quantity of this item
+        default: 1
     },
     createdAt: {
         type: Date,

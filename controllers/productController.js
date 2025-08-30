@@ -9,22 +9,24 @@ const Reviews = require('../models/reviewModel');
 
 // Get All Products
 exports.getAllProducts = asyncErrorHandler(async (req, res, next) => {
-
+    // Total number of products in the database
     const productsCount = await Product.countDocuments();
 
-    const apiFeatures = new SearchFeatures(Product.find(), req.query)
+    // Initialize query with search and filter
+    let query = Product.find();
+    const apiFeatures = new SearchFeatures(query, req.query)
         .search()
-        .filter()
-        
+        .filter();
 
-    let products = await apiFeatures.query;
-    console.log("the products fetched",products);
+    // Execute the query
+    const products = await apiFeatures.query;
+
+    console.log("The products fetched:", products.length); // debug: how many products were fetched
 
     res.status(200).json({
         success: true,
         products,
         productsCount,
-        
     });
 });
 

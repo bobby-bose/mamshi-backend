@@ -37,39 +37,46 @@ router.route('/product/:productId').get(async (req, res, next) => {
 router.route('/wishlist/:productId/:mobileNumber').post(async (req, res, next) => {
   try {
     const { productId, mobileNumber } = req.params;
-    const { size } = req.body;   // 👈 get size from body
+    const { size, color, count } = req.body; // now also get count
 
+    // Basic validations
     if (!productId || !mobileNumber) {
+      console.error("Product ID or Mobile Number missing");
       return next(new ErrorHandler("Product ID and Mobile Number are required", 400));
     }
 
     if (!size) {
+      console.error("Size is missing");
       return next(new ErrorHandler("Size is required", 400));
     }
 
-    // ✅ Check if Cart model is loaded
+    // Ensure Cart model is loaded
     if (!Cart || typeof Cart.create !== "function") {
       console.error("MongoDB Model 'Cart' is not loaded correctly.");
       return next(new ErrorHandler("Database model not found", 500));
     }
 
+    // Create the wishlist/cart item
     const newWishlistItem = await Cart.create({
       productId,
       mobileNumber,
-      size   // 👈 store size
+      size,
+      ...(color ? { color } : {}), // store color only if it exists
+      count: count || 1,            // store count, default to 1
     });
-
+console.log("New wishlist item created:", newWishlistItem);
     res.status(201).json({
       success: true,
       message: "Product added to wishlist successfully",
-      data: newWishlistItem
+      data: newWishlistItem,
     });
-
   } catch (err) {
-    console.error("Exception while adding product to wishlist:", err.message);
+    console.error("Exception while adding product to wishlist:", err);
     return next(new ErrorHandler("Failed to add product to wishlist", 500));
   }
 });
+
+
 
 router.route('/wishlist/:wishlistId').delete(async (req, res, next) => {
     try {

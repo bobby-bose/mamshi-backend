@@ -53,12 +53,19 @@ exports.getSingleOrderDetails = asyncErrorHandler(async (req, res, next) => {
 });
 
 // i need a addOrders function to add orders to the cart accepting productId and the mobileNumber
+
 exports.addOrders = asyncErrorHandler(async (req, res, next) => {
-    const { productId, mobileNumber } = req.body;
+    const { productId, mobileNumber, size, color, count } = req.body;
 
     if (!productId || !mobileNumber) {
         return next(new ErrorHandler("Product ID and Mobile Number are required", 400));
     }
+
+    if (!size) {
+        return next(new ErrorHandler("Size is required", 400));
+    }
+
+    
 
     const product = await Product.findById(productId);
 
@@ -66,24 +73,23 @@ exports.addOrders = asyncErrorHandler(async (req, res, next) => {
         return next(new ErrorHandler("Product Not Found", 404));
     }
 
-    // Here you can implement logic to add the order to the cart or database
-    // For now, we will just return a success message
-    Order.create({
-        product,
-        mobileNumber,
-        quantity: 1, // Assuming a default quantity of 1
+    // Create the order
+    const order = await Order.create({
+        product: product._id,          // store product ObjectId
+        productName: product.Name,     // store product name directly
+        email:mobileNumber,
+        size,
+        color,
+        count: count || 1              // use passed count or default to 1
     });
 
-    res.status(200).json({
+    res.status(201).json({
         success: true,
         message: "Order added successfully",
-        product: {
-            id: product._id,
-            
-           
-        }
+        order
     });
 });
+
 
 // Get Logged In User Orders
 exports.myOrders = asyncErrorHandler(async (req, res, next) => {
