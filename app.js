@@ -7,13 +7,8 @@ const cors = require('cors');
 const app = express();
 
 app.use(cors({
-  origin: [
-    "https://slouch.netlify.app", // your deployed frontend
-    "http://localhost:3000" // optional: for local dev
-  ],
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
+  origin: "https://slouch.netlify.app/",  // frontend URL
+  credentials: true,                // allow cookies and credentials
 }));
 
 

@@ -1,190 +1,114 @@
-const express = require('express');
+const asyncErrorHandler = require('../middlewares/asyncErrorHandler');
+const Payment = require('../models/paymentModel');
 const axios = require('axios');
-const cors = require('cors');
-const app = express();
-const PORT = 5000;
 
-app.use(cors());
-app.use(express.json());
+// ----- PhonePe Config -----
+const CLIENT_ID = "SU2509011920199571786178";
+const CLIENT_SECRET = "fbf66a20-f2fc-4df8-b21b-242f5de3d741";
+const CLIENT_VERSION = "1";
 
-// -------------------- CONFIG --------------------
-const CLIENT_ID = 'SU2509011920199571786178';
-const CLIENT_VERSION = '1';
-const CLIENT_SECRET = 'fbf66a20-f2fc-4df8-b21b-242f5de3d741';
-
-// -------------------- UTILITY: GET ACCESS TOKEN --------------------
+// ----- Helper: Get Access Token -----
 async function getAccessToken() {
-  console.log('[AccessToken]: Generating new access token...');
-  
-  const body = 'client_id=SU2509011920199571786178&client_secret=fbf66a20-f2fc-4df8-b21b-242f5de3d741&client_version=1&grant_type=client_credentials';
+    try {
+        console.log("🔹 Requesting PhonePe access token...");
+       const qs = require("querystring"); // Node built-in
+const requestBody = qs.stringify({
+  client_id: CLIENT_ID,
+  client_secret: CLIENT_SECRET,
+  client_version: CLIENT_VERSION,
+  grant_type: "client_credentials"
+});
 
-  const tokenResponse = await axios.post(
-    'https://api.phonepe.com/apis/identity-manager/v1/oauth/token',
-    body,
-    { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
-  );
+const response = await axios.post(
+  "https://api.phonepe.com/apis/identity-manager/v1/oauth/token",
+  requestBody,
+  { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+);
 
-  console.log('[AccessToken]: Access token received:', tokenResponse.data.access_token);
-  return tokenResponse.data.access_token;
+        console.log("✅ Access token received:", response.data.access_token);
+        return response.data.access_token;
+    } catch (error) {
+        console.error("❌ Error getting access token:", error.response?.data || error.message);
+        throw error;
+    }
 }
 
+// ----- Start Payment -----
+exports.startPayment = asyncErrorHandler(async (req, res, next) => {
+    const { amount, userId } = req.body;
+    console.log("🔹 /payments/start called with:", { amount, userId });
 
-// -------------------- START PAYMENT --------------------
-app.post('/api/start-payment', async (req, res) => {
-  console.log('[StartPayment]: Request received', req.body);
-  const { amount, userId } = req.body;
-  if (!amount || !userId) {
-    console.log('[StartPayment]: ERROR - Amount or UserId missing!');
-    return res.status(400).json({ error: 'Amount and userId are required.' });
-  }
+    if (!amount || !userId) return res.status(400).json({ error: "Amount and userId are required" });
 
-  try {
-    const accessToken = await getAccessToken();
-    console.log('[StartPayment]: Access token obtained for initiating payment.');
+    try {
+        const token = await getAccessToken();
+        const merchantOrderId = "order_" + Date.now();
 
-    const merchantOrderId = "TX" + Date.now();
-    console.log('[StartPayment]: Generated merchantOrderId:', merchantOrderId);
+        const payload = {
+            merchantOrderId,
+            amount,
+            expireAfter: 1200,
+            metaInfo: { userId },
+            paymentFlow: {
+                type: "PG_CHECKOUT",
+                message: "Payment for order",
+                merchantUrls: {
+                    redirectUrl: "https://slouch.netlify.app/payment-success",
+                },
+            },
+        };
 
-    const paymentBody = {
-      merchantOrderId,
-      amount: parseInt(amount, 10) * 100,
-      paymentFlow: {
-        type: "PG_CHECKOUT",
-        message: "Payment for goods",
-        merchantUrls: {
-          redirectUrl: 'https://www.google.com/',
-          callbackUrl: 'https://backend-paypal.onrender.com/api/payment-callback'
-        }
-      }
-    };
+        console.log("🔹 Sending payment request to PhonePe:", payload);
 
-    console.log('[StartPayment]: Payment body prepared:', paymentBody);
+        const response = await axios.post(
+            "https://api.phonepe.com/apis/pg/checkout/v2/pay",
+            payload,
+            { headers: { Authorization: `O-Bearer ${token}`, "Content-Type": "application/json" } }
+        );
 
-    // Initiate payment
-    const redirectResponse = await axios.post(
-      'https://api.phonepe.com/apis/pg/checkout/v2/pay',
-      paymentBody,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `O-Bearer ${accessToken}`
-        }
-      }
-    );
+        console.log("✅ Payment request response:", response.data);
 
-    const redirectUrl = redirectResponse.data.redirectUrl;
-    console.log('[StartPayment]: Redirect URL received:', redirectUrl);
-
-    // Immediately check status
-    console.log('[StartPayment]: Checking transaction status immediately...');
-    const statusResponse = await axios.get(
-      `https://api.phonepe.com/apis/pg/checkout/v2/order/${merchantOrderId}/status?details=true`,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `O-Bearer ${accessToken}`
-        }
-      }
-    );
-
-    const orderData = statusResponse.data;
-    console.log('[StartPayment]: Immediate status response:', orderData);
-
-    const isPaid = orderData.paymentDetails?.some(p => p.state === 'COMPLETED');
-    console.log('[StartPayment]: Payment COMPLETED?', isPaid);
-
-    res.json({
-      redirectUrl,
-      merchantOrderId,
-      status: isPaid ? 'SUCCESS' : 'PENDING',
-      rawData: orderData
-    });
-
-  } catch (error) {
-    console.error('[StartPayment]: API call failed:', error.response ? error.response.data : error.message);
-    res.status(500).json({ error: 'Failed to complete API sequence' });
-  }
-});
-
-
-// -------------------- CALLBACK --------------------
-app.post('/api/payment-callback', async (req, res) => {
-  console.log('[Callback]: Callback received with data:', req.body);
-
-  const paymentData = req.body;
-  const merchantOrderId = paymentData?.merchantOrderId || paymentData?.orderId;
-  console.log('[Callback]: Merchant Order ID:', merchantOrderId);
-
-  try {
-    const accessToken = await getAccessToken();
-    console.log('[Callback]: Access token obtained for status check.');
-
-    const statusResponse = await axios.get(
-      `https://api.phonepe.com/apis/pg/checkout/v2/order/${merchantOrderId}/status?details=true`,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `O-Bearer ${accessToken}`
-        }
-      }
-    );
-
-    console.log('[Callback]: Status response received:', statusResponse.data);
-    const orderData = statusResponse.data;
-    const isPaid = orderData.paymentDetails?.some(p => p.state === 'COMPLETED');
-    console.log('[Callback]: Payment COMPLETED?', isPaid);
-
-    if (isPaid) {
-      console.log(`[Final Confirmation]: Order ${merchantOrderId} SUCCESS ✅`);
-    } else {
-      console.log(`[Final Confirmation]: Order ${merchantOrderId} FAILED ❌`);
+        res.status(200).json({
+            merchantOrderId,
+            paymentUrl: response.data.redirectUrl || response.data.paymentUrl,
+        });
+    } catch (error) {
+        console.error("❌ Error creating payment:", error.response?.data || error.message);
+        res.status(500).json({ error: "Failed to create payment" });
     }
-
-  } catch (err) {
-    console.error('[Callback]: Status check error:', err.response ? err.response.data : err.message);
-  }
-
-  res.status(200).send('Callback processed.');
 });
 
-// -------------------- MANUAL CHECK --------------------
-app.get('/api/check-status/:orderId', async (req, res) => {
-  const { orderId } = req.params;
-  console.log('[ManualCheck]: Checking status for orderId:', orderId);
+// ----- Complete Payment -----
+exports.completePayment = asyncErrorHandler(async (req, res, next) => {
+    const { userId, amount, merchantOrderId, phonePeTxnId } = req.body;
+    console.log("🔹 /payments/complete called with:", { userId, amount, merchantOrderId, phonePeTxnId });
 
-  try {
-    const accessToken = await getAccessToken();
-    console.log('[ManualCheck]: Access token obtained for manual check.');
+    if (!userId || !amount || !merchantOrderId || !phonePeTxnId)
+        return res.status(400).json({ error: "Missing payment info" });
 
-    const statusResponse = await axios.get(
-      `https://api.phonepe.com/apis/pg/checkout/v2/order/${orderId}/status?details=true`,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `O-Bearer ${accessToken}`
+    try {
+        const token = await getAccessToken();
+        console.log(`🔹 Verifying payment for merchantOrderId: ${merchantOrderId} with PhonePe`);
+
+        const verifyResponse = await axios.get(
+            `https://api.phonepe.com/apis/pg/checkout/v2/status/${merchantOrderId}`,
+            { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } }
+        );
+
+        console.log("✅ Payment verification response:", verifyResponse.data);
+
+        const status = verifyResponse.data.status;
+        if (status !== "SUCCESS") {
+            console.warn("⚠️ Payment not successful:", status);
+            return res.status(400).json({ error: "Payment not successful" });
         }
-      }
-    );
 
-    const orderData = statusResponse.data;
-    console.log('[ManualCheck]: Status response received:', orderData);
+        const payment = await Payment.create({ userId, amount, merchantOrderId, phonePeTxnId, status });
+        console.log("✅ Payment recorded in database:", payment);
 
-    const isPaid = orderData.paymentDetails?.some(p => p.state === 'COMPLETED');
-    console.log('[ManualCheck]: Payment COMPLETED?', isPaid);
-
-    res.json({
-      orderId,
-      status: isPaid ? 'SUCCESS' : 'FAILED',
-      rawData: orderData
-    });
-
-  } catch (err) {
-    console.error('[ManualCheck]: Error checking status:', err.response ? err.response.data : err.message);
-    res.status(500).json({ error: err.response ? err.response.data : err.message });
-  }
-});
-
-// -------------------- START SERVER --------------------
-app.listen(PORT, () => {
-  console.log(`✅ Production server running at http://localhost:${PORT}`);
+        res.status(200).json({ message: "Payment recorded successfully", payment });
+    } catch (error) {
+        console.error("❌ Error completing payment:", error.response?.data || error.message);
+        res.status(500).json({ error: "Failed to record payment" });
+    }
 });
