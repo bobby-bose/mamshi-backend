@@ -1,159 +1,190 @@
-const asyncErrorHandler = require('../middlewares/asyncErrorHandler');
-// const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-const paytm = require('paytmchecksum');
-const https = require('https');
-const Payment = require('../models/paymentModel');
-const ErrorHandler = require('../utils/errorHandler');
-const { v4: uuidv4 } = require('uuid');
+const express = require('express');
+const axios = require('axios');
+const cors = require('cors');
+const app = express();
+const PORT = 5000;
 
-// exports.processPayment = asyncErrorHandler(async (req, res, next) => {
-//     const myPayment = await stripe.paymentIntents.create({
-//         amount: req.body.amount,
-//         currency: "inr",
-//         metadata: {
-//             company: "Flipkart",
-//         },
-//     });
+app.use(cors());
+app.use(express.json());
 
-//     res.status(200).json({
-//         success: true,
-//         client_secret: myPayment.client_secret, 
-//     });
-// });
+// -------------------- CONFIG --------------------
+const CLIENT_ID = 'SU2509011920199571786178';
+const CLIENT_VERSION = '1';
+const CLIENT_SECRET = 'fbf66a20-f2fc-4df8-b21b-242f5de3d741';
 
-// exports.sendStripeApiKey = asyncErrorHandler(async (req, res, next) => {
-//     res.status(200).json({ stripeApiKey: process.env.STRIPE_API_KEY });
-// });
+// -------------------- UTILITY: GET ACCESS TOKEN --------------------
+async function getAccessToken() {
+  console.log('[AccessToken]: Generating new access token...');
+  
+  const body = 'client_id=SU2509011920199571786178&client_secret=fbf66a20-f2fc-4df8-b21b-242f5de3d741&client_version=1&grant_type=client_credentials';
 
-// Process Payment
-exports.processPayment = asyncErrorHandler(async (req, res, next) => {
+  const tokenResponse = await axios.post(
+    'https://api.phonepe.com/apis/identity-manager/v1/oauth/token',
+    body,
+    { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+  );
 
-    const { amount, email, phoneNo } = req.body;
+  console.log('[AccessToken]: Access token received:', tokenResponse.data.access_token);
+  return tokenResponse.data.access_token;
+}
 
-    var params = {};
 
-    /* initialize an array */
-    params["MID"] = process.env.PAYTM_MID;
-    params["WEBSITE"] = process.env.PAYTM_WEBSITE;
-    params["CHANNEL_ID"] = process.env.PAYTM_CHANNEL_ID;
-    params["INDUSTRY_TYPE_ID"] = process.env.PAYTM_INDUSTRY_TYPE;
-    params["ORDER_ID"] = "oid" + uuidv4();
-    params["CUST_ID"] = process.env.PAYTM_CUST_ID;
-    params["TXN_AMOUNT"] = JSON.stringify(amount);
-    // params["CALLBACK_URL"] = `${req.protocol}://${req.get("host")}/api/v1/callback`;
-    params["CALLBACK_URL"] = `https://${req.get("host")}/api/v1/callback`;
-    params["EMAIL"] = email;
-    params["MOBILE_NO"] = phoneNo;
+// -------------------- START PAYMENT --------------------
+app.post('/api/start-payment', async (req, res) => {
+  console.log('[StartPayment]: Request received', req.body);
+  const { amount, userId } = req.body;
+  if (!amount || !userId) {
+    console.log('[StartPayment]: ERROR - Amount or UserId missing!');
+    return res.status(400).json({ error: 'Amount and userId are required.' });
+  }
 
-    let paytmChecksum = paytm.generateSignature(params, process.env.PAYTM_MERCHANT_KEY);
-    paytmChecksum.then(function (checksum) {
+  try {
+    const accessToken = await getAccessToken();
+    console.log('[StartPayment]: Access token obtained for initiating payment.');
 
-        let paytmParams = {
-            ...params,
-            "CHECKSUMHASH": checksum,
-        };
+    const merchantOrderId = "TX" + Date.now();
+    console.log('[StartPayment]: Generated merchantOrderId:', merchantOrderId);
 
-        res.status(200).json({
-            paytmParams
-        });
+    const paymentBody = {
+      merchantOrderId,
+      amount: parseInt(amount, 10) * 100,
+      paymentFlow: {
+        type: "PG_CHECKOUT",
+        message: "Payment for goods",
+        merchantUrls: {
+          redirectUrl: 'https://www.google.com/',
+          callbackUrl: 'https://backend-paypal.onrender.com/api/payment-callback'
+        }
+      }
+    };
 
-    }).catch(function (error) {
-        console.log(error);
+    console.log('[StartPayment]: Payment body prepared:', paymentBody);
+
+    // Initiate payment
+    const redirectResponse = await axios.post(
+      'https://api.phonepe.com/apis/pg/checkout/v2/pay',
+      paymentBody,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `O-Bearer ${accessToken}`
+        }
+      }
+    );
+
+    const redirectUrl = redirectResponse.data.redirectUrl;
+    console.log('[StartPayment]: Redirect URL received:', redirectUrl);
+
+    // Immediately check status
+    console.log('[StartPayment]: Checking transaction status immediately...');
+    const statusResponse = await axios.get(
+      `https://api.phonepe.com/apis/pg/checkout/v2/order/${merchantOrderId}/status?details=true`,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `O-Bearer ${accessToken}`
+        }
+      }
+    );
+
+    const orderData = statusResponse.data;
+    console.log('[StartPayment]: Immediate status response:', orderData);
+
+    const isPaid = orderData.paymentDetails?.some(p => p.state === 'COMPLETED');
+    console.log('[StartPayment]: Payment COMPLETED?', isPaid);
+
+    res.json({
+      redirectUrl,
+      merchantOrderId,
+      status: isPaid ? 'SUCCESS' : 'PENDING',
+      rawData: orderData
     });
+
+  } catch (error) {
+    console.error('[StartPayment]: API call failed:', error.response ? error.response.data : error.message);
+    res.status(500).json({ error: 'Failed to complete API sequence' });
+  }
 });
 
-// Paytm Callback
-exports.paytmResponse = (req, res, next) => {
 
-    // console.log(req.body);
+// -------------------- CALLBACK --------------------
+app.post('/api/payment-callback', async (req, res) => {
+  console.log('[Callback]: Callback received with data:', req.body);
 
-    let paytmChecksum = req.body.CHECKSUMHASH;
-    delete req.body.CHECKSUMHASH;
+  const paymentData = req.body;
+  const merchantOrderId = paymentData?.merchantOrderId || paymentData?.orderId;
+  console.log('[Callback]: Merchant Order ID:', merchantOrderId);
 
-    let isVerifySignature = paytm.verifySignature(req.body, process.env.PAYTM_MERCHANT_KEY, paytmChecksum);
-    if (isVerifySignature) {
-        // console.log("Checksum Matched");
+  try {
+    const accessToken = await getAccessToken();
+    console.log('[Callback]: Access token obtained for status check.');
 
-        var paytmParams = {};
+    const statusResponse = await axios.get(
+      `https://api.phonepe.com/apis/pg/checkout/v2/order/${merchantOrderId}/status?details=true`,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `O-Bearer ${accessToken}`
+        }
+      }
+    );
 
-        paytmParams.body = {
-            "mid": req.body.MID,
-            "orderId": req.body.ORDERID,
-        };
+    console.log('[Callback]: Status response received:', statusResponse.data);
+    const orderData = statusResponse.data;
+    const isPaid = orderData.paymentDetails?.some(p => p.state === 'COMPLETED');
+    console.log('[Callback]: Payment COMPLETED?', isPaid);
 
-        paytm.generateSignature(JSON.stringify(paytmParams.body), process.env.PAYTM_MERCHANT_KEY).then(function (checksum) {
-
-            paytmParams.head = {
-                "signature": checksum
-            };
-
-            /* prepare JSON string for request */
-            var post_data = JSON.stringify(paytmParams);
-
-            var options = {
-                /* for Staging */
-                hostname: 'securegw-stage.paytm.in',
-                /* for Production */
-                // hostname: 'securegw.paytm.in',
-                port: 443,
-                path: '/v3/order/status',
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Content-Length': post_data.length
-                }
-            };
-
-            // Set up the request
-            var response = "";
-            var post_req = https.request(options, function (post_res) {
-                post_res.on('data', function (chunk) {
-                    response += chunk;
-                });
-
-                post_res.on('end', function () {
-                    let { body } = JSON.parse(response);
-                    // let status = body.resultInfo.resultStatus;
-                    // res.json(body);
-                    addPayment(body);
-                    // res.redirect(`${req.protocol}://${req.get("host")}/order/${body.orderId}`)
-                    res.redirect(`https://${req.get("host")}/order/${body.orderId}`)
-                });
-            });
-
-            // post the data
-            post_req.write(post_data);
-            post_req.end();
-        });
-
+    if (isPaid) {
+      console.log(`[Final Confirmation]: Order ${merchantOrderId} SUCCESS ✅`);
     } else {
-        console.log("Checksum Mismatched");
-    }
-}
-
-const addPayment = async (data) => {
-    try {
-        await Payment.create(data);
-    } catch (error) {
-        console.log("Payment Failed!");
-    }
-}
-
-exports.getPaymentStatus = asyncErrorHandler(async (req, res, next) => {
-
-    const payment = await Payment.findOne({ orderId: req.params.id });
-
-    if (!payment) {
-        return next(new ErrorHandler("Payment Details Not Found", 404));
+      console.log(`[Final Confirmation]: Order ${merchantOrderId} FAILED ❌`);
     }
 
-    const txn = {
-        id: payment.txnId,
-        status: payment.resultInfo.resultStatus,
-    }
+  } catch (err) {
+    console.error('[Callback]: Status check error:', err.response ? err.response.data : err.message);
+  }
 
-    res.status(200).json({
-        success: true,
-        txn,
+  res.status(200).send('Callback processed.');
+});
+
+// -------------------- MANUAL CHECK --------------------
+app.get('/api/check-status/:orderId', async (req, res) => {
+  const { orderId } = req.params;
+  console.log('[ManualCheck]: Checking status for orderId:', orderId);
+
+  try {
+    const accessToken = await getAccessToken();
+    console.log('[ManualCheck]: Access token obtained for manual check.');
+
+    const statusResponse = await axios.get(
+      `https://api.phonepe.com/apis/pg/checkout/v2/order/${orderId}/status?details=true`,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `O-Bearer ${accessToken}`
+        }
+      }
+    );
+
+    const orderData = statusResponse.data;
+    console.log('[ManualCheck]: Status response received:', orderData);
+
+    const isPaid = orderData.paymentDetails?.some(p => p.state === 'COMPLETED');
+    console.log('[ManualCheck]: Payment COMPLETED?', isPaid);
+
+    res.json({
+      orderId,
+      status: isPaid ? 'SUCCESS' : 'FAILED',
+      rawData: orderData
     });
+
+  } catch (err) {
+    console.error('[ManualCheck]: Error checking status:', err.response ? err.response.data : err.message);
+    res.status(500).json({ error: err.response ? err.response.data : err.message });
+  }
+});
+
+// -------------------- START SERVER --------------------
+app.listen(PORT, () => {
+  console.log(`✅ Production server running at http://localhost:${PORT}`);
 });
