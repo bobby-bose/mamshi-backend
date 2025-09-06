@@ -135,7 +135,8 @@ console.log("🔹 Full successful payment detail:", successfulPayment);
         const payment = await Payment.create({ userId, amount, merchantOrderId, phonePeTxnId, status });
 
         console.log("✅ Payment recorded successfully:", payment);
-        res.status(200).json({ message: "Payment recorded successfully", payment });
+        res.status(200).json({ success: true, message: "Payment recorded successfully", payment });
+
     } catch (error) {
         console.error("❌ Error completing payment:", error.response?.data || error.message);
         res.status(500).json({ error: "Failed to record payment" });
