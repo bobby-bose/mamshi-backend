@@ -107,35 +107,52 @@ exports.myOrders = asyncErrorHandler(async (req, res, next) => {
 });
 
 
-// Get All Orders ---ADMIN
-// Get all unique customers who have ordered ---ADMIN
 exports.getAllOrders = asyncErrorHandler(async (req, res, next) => {
-    // Find all orders and group them by mobileNumber to get unique customers
-    const uniqueCustomers = await Order.aggregate([
-        {
-            $group: {
-                _id: "$mobileNumber"
-            }
-        }
+    const initialVouchers = 50000;
+
+    // Find all unique email users with COMPLETED payments
+    const uniqueEmailUsers = await Payment.aggregate([
+       
+        { $group: { _id: "$useremail" } } // group by email
     ]);
 
-    // The count of unique customers is the length of the resulting array
-    const numberOfCustomers = uniqueCustomers.length;
-
-    // To get the total order count and amount for all customers (optional, but good practice)
-    const orders = await Order.find();
-    let totalAmount = 0;
-    orders.forEach((order) => {
-        totalAmount += order.totalPrice; // Assuming totalPrice exists in your Order model
-    });
+    const numberOfUniqueEmails = uniqueEmailUsers.length;
+    const vouchersLeft = Math.max(0, initialVouchers - numberOfUniqueEmails);
 
     res.status(200).json({
         success: true,
-        orders, // All orders are still returned for the admin dashboard
-        totalAmount,
-        numberOfCustomers, // This is the new, requested field
+        vouchersLeft,
+        numberOfUniqueEmails,
     });
 });
+
+// exports.getAllOrders = asyncErrorHandler(async (req, res, next) => {
+//     // Find all orders and group them by mobileNumber to get unique customers
+//     const uniqueCustomers = await Order.aggregate([
+//         {
+//             $group: {
+//                 _id: "$mobileNumber"
+//             }
+//         }
+//     ]);
+
+//     // The count of unique customers is the length of the resulting array
+//     const numberOfCustomers = uniqueCustomers.length;
+
+//     // To get the total order count and amount for all customers (optional, but good practice)
+//     const orders = await Order.find();
+//     let totalAmount = 0;
+//     orders.forEach((order) => {
+//         totalAmount += order.totalPrice; // Assuming totalPrice exists in your Order model
+//     });
+
+//     res.status(200).json({
+//         success: true,
+//         orders, // All orders are still returned for the admin dashboard
+//         totalAmount,
+//         numberOfCustomers, // This is the new, requested field
+//     });
+// });
 
 // Update Order Status ---ADMIN
 exports.updateOrder = asyncErrorHandler(async (req, res, next) => {

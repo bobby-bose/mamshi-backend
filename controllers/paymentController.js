@@ -38,7 +38,7 @@ async function getAccessToken() {
 
 // ----- Start Payment -----
 const startPayment = asyncErrorHandler(async (req, res, next) => {
-    const { amount, userId } = req.body;
+    const { amount, userId , useremail } = req.body;
     console.log("🔹 /payments/start called with:", { amount, userId });
 
     if (!amount || !userId) {
@@ -127,12 +127,13 @@ if (!successfulPayment) {
 const phonePeTxnId = successfulPayment.transactionId;
 const status = successfulPayment.state;
 
+
 console.log("🔹 Extracted phonePeTxnId:", phonePeTxnId, "status:", status);
 console.log("🔹 Full successful payment detail:", successfulPayment);
 
 
         console.log("🔹 Recording payment in database...");
-        const payment = await Payment.create({ userId, amount, merchantOrderId, phonePeTxnId, status });
+        const payment = await Payment.create({ userId, amount, merchantOrderId, phonePeTxnId, status ,useremail });
 
         console.log("✅ Payment recorded successfully:", payment);
         res.status(200).json({ success: true, message: "Payment recorded successfully", payment });
