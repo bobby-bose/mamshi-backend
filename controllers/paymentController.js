@@ -112,17 +112,24 @@ const completePayment = asyncErrorHandler(async (req, res, next) => {
             return res.status(400).json({ error: "No payment attempt found" });
         }
 
-        const phonePeTxnId = paymentDetails[0].transactionId;
-        const status = paymentDetails[0].state;
+ // ----- Find the first successful payment attempt -----
+const successfulPayment = paymentDetails.find(detail => detail.state === "COMPLETED");
 
-        console.log(`🔹 Extracted phonePeTxnId: ${phonePeTxnId}, status: ${status}`);
+if (!successfulPayment) {
+    console.warn("⚠️ No successful payment attempt found");
+    console.log("Full paymentDetails object:", paymentDetails);
+    return res.status(400).json({
+        error: "Payment not successful",
+        paymentDetails
+    });
+}
 
-        if (status !== "COMPLETED") {
-            console.warn("⚠️ Payment not successful:", status);
-            console.log("Full paymentDetails object:", verifyResponse.data.paymentDetails[0]);
-                console.log("🔹 Payment failure reason:", verifyResponse.data.paymentDetails[0].errorCode, verifyResponse.data.paymentDetails[0].detailedErrorCode);
-            return res.status(400).json({ error: "Payment not successful", status });
-        }
+const phonePeTxnId = successfulPayment.transactionId;
+const status = successfulPayment.state;
+
+console.log("🔹 Extracted phonePeTxnId:", phonePeTxnId, "status:", status);
+console.log("🔹 Full successful payment detail:", successfulPayment);
+
 
         console.log("🔹 Recording payment in database...");
         const payment = await Payment.create({ userId, amount, merchantOrderId, phonePeTxnId, status });
