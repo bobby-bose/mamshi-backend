@@ -119,6 +119,8 @@ const completePayment = asyncErrorHandler(async (req, res, next) => {
 
         if (status !== "COMPLETED") {
             console.warn("⚠️ Payment not successful:", status);
+            console.log("Full paymentDetails object:", verifyResponse.data.paymentDetails[0]);
+                console.log("🔹 Payment failure reason:", verifyResponse.data.paymentDetails[0].errorCode, verifyResponse.data.paymentDetails[0].detailedErrorCode);
             return res.status(400).json({ error: "Payment not successful", status });
         }
 
