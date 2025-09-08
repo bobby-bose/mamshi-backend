@@ -200,57 +200,6 @@ exports.getAdminProducts = asyncErrorHandler(async (req, res, next) => {
     });
 });
 
-// Create Product ---ADMIN
-exports.createProduct = asyncErrorHandler(async (req, res, next) => {
-
-    let images = [];
-    if (typeof req.body.images === "string") {
-        images.push(req.body.images);
-    } else {
-        images = req.body.images;
-    }
-
-    const imagesLink = [];
-
-    for (let i = 0; i < images.length; i++) {
-        const result = await cloudinary.v2.uploader.upload(images[i], {
-            folder: "products",
-        });
-
-        imagesLink.push({
-            public_id: result.public_id,
-            url: result.secure_url,
-        });
-    }
-
-    const result = await cloudinary.v2.uploader.upload(req.body.logo, {
-        folder: "brands",
-    });
-    const brandLogo = {
-        public_id: result.public_id,
-        url: result.secure_url,
-    };
-
-    req.body.brand = {
-        name: req.body.brandname,
-        logo: brandLogo
-    }
-    req.body.images = imagesLink;
-    req.body.user = req.user.id;
-
-    let specs = [];
-    req.body.specifications.forEach((s) => {
-        specs.push(JSON.parse(s))
-    });
-    req.body.specifications = specs;
-
-    const product = await Product.create(req.body);
-
-    res.status(201).json({
-        success: true,
-        product
-    });
-});
 
 // Update Product ---ADMIN
 exports.updateProduct = asyncErrorHandler(async (req, res, next) => {
@@ -444,3 +393,51 @@ exports.deleteReview = asyncErrorHandler(async (req, res, next) => {
         success: true,
     });
 });
+
+
+const multer = require("multer");
+
+// Multer storage config
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "uploads/"); // save inside /uploads folder
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + "-" + file.originalname);
+  }
+});
+
+const upload = multer({ storage });
+
+// Controller
+exports.createProduct = async (req, res) => {
+  try {
+    console.log("FILES RECEIVED:", req.files);
+console.log("BODY RECEIVED:", req.body);
+
+    const { Name, Description, Price, S, M, L, XL, stock, colors } = req.body;
+
+    const main = req.files?.main ? req.files.main[0].path : null;
+    const sub = req.files?.sub ? req.files.sub[0].path : null;
+
+    const newProduct = await Product.create({
+      Name,
+      Description,
+      Price,
+      main,
+      sub,
+      S,
+      M,
+      L,
+      XL,
+      colors: colors ? JSON.parse(colors) : [],
+      stock,
+    });
+
+    res.status(201).json({ success: true, product: newProduct });
+  } catch (error) {
+    console.error("Error creating product:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+

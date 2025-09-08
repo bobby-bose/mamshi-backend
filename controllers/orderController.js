@@ -2,6 +2,7 @@ const asyncErrorHandler = require('../middlewares/asyncErrorHandler');
 const Order = require('../models/orderModel');
 const Product = require('../models/productModel');
 const ErrorHandler = require('../utils/errorHandler');
+const Payment = require("../models/paymentModel"); // adjust path if needed
 
 
 // Create New Order

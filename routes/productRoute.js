@@ -4,7 +4,7 @@ const Cart = require('../models/cart');
 const asyncErrorHandler = require('../middlewares/asyncErrorHandler');
 const ErrorHandler = require('../utils/errorHandler');
 const productModel = require('../models/productModel');
-
+const multer = require("multer");
 
 const router = express.Router();
 
@@ -107,7 +107,6 @@ router.route('/products/questions/:productId/:mobileNumber').post(createQuestion
 router.route('/products/reviews/:productId/:mobileNumber').post(createReview);
 router.route('/reviews/:productId').get(getReviews);
 router.route('/questions/:productId').get(getQuestions);
-router.route('/products/all').get(getProducts);
 router.route("/products/:productId/stock").put(updateStock);
 router.route('/products/').get(getProducts);
 
@@ -126,4 +125,91 @@ router.route('/admin/reviews')
     .get(getProductReviews)
     .delete(deleteReview);
 
+
+const Product = require('../models/productModel'); // adjust path
+
+
+
+// Multer storage config
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/'); // folder must exist
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + '-' + file.originalname);
+  }
+});
+const upload = multer({ storage });
+
+// =================== CREATE PRODUCT ===================
+router.post(
+  '/products/new',
+  upload.fields([
+    { name: 'main', maxCount: 1 },
+    { name: 'sub', maxCount: 1 }
+  ]),
+  async (req, res) => {
+    try {
+      const { Name, Description, Price, S, M, L, XL, stock, colors } = req.body;
+
+      // Get uploaded images paths
+      const main = req.files?.main ? `/uploads/${req.files.main[0].filename}` : null;
+      const sub = req.files?.sub ? `/uploads/${req.files.sub[0].filename}` : null;
+
+      // Parse colors
+      const colorsArray = colors ? JSON.parse(colors) : [];
+
+      // Save to DB
+      const newProduct = await Product.create({
+        Name,
+        Description,
+        Price: Number(Price),
+        S: S === 'true' || S === true,
+        M: M === 'true' || M === true,
+        L: L === 'true' || L === true,
+        XL: XL === 'true' || XL === true,
+        stock: Number(stock),
+        colors: colorsArray,
+        main,
+        sub
+      });
+
+      res.status(201).json({ success: true, product: newProduct });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+);
+
+// =================== GET ALL PRODUCTS ===================
+router.get('/products/all', async (req, res) => {
+  try {
+    const products = await Product.find();
+    res.json({ success: true, products });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// =================== UPDATE STOCK ===================
+router.put('/products/:id/stock', async (req, res) => {
+  try {
+    const { stock } = req.body;
+    const product = await Product.findById(req.params.id);
+    if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
+
+    product.stock = Number(stock);
+    await product.save();
+
+    res.json({ success: true, product });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+
 module.exports = router;
+
