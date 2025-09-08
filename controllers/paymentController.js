@@ -49,19 +49,24 @@ const startPayment = asyncErrorHandler(async (req, res, next) => {
     try {
         const token = await getAccessToken();
         const merchantOrderId = "order_" + Date.now();
-        const redirectURL = process.env.FRONTEND_ORIGIN + "/payment-success";
+   
+const redirectURL = `${process.env.FRONTEND_ORIGIN}/payment-success/${merchantOrderId}`;
 
-        const payload = {
-            merchantOrderId,
-            amount,
-            expireAfter: 1200,
-            metaInfo: { userId },
-            paymentFlow: {
-                type: "PG_CHECKOUT",
-                message: "Payment for order",
-                merchantUrls: { redirectUrl: redirectURL },
-            },
-        };
+const payload = {
+    merchantOrderId,
+    amount,
+    expireAfter: 1200,
+    metaInfo: { userId },
+    paymentFlow: {
+        type: "PG_CHECKOUT",
+        message: "Payment for order",
+        merchantUrls: {
+            redirectUrl: redirectURL,   // ✅ include orderId here
+            callbackUrl: `${process.env.BACKEND_ORIGIN}/payments/callback/${merchantOrderId}`, // optional but recommended
+        },
+    },
+};
+
 
         console.log("🔹 Sending payment request to PhonePe:", payload);
 
