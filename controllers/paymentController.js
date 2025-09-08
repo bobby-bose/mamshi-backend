@@ -90,63 +90,57 @@ const payload = {
 
 // ----- Complete Payment -----
 const completePayment = asyncErrorHandler(async (req, res, next) => {
-    const { userId, amount, merchantOrderId } = req.body;
-    console.log("🔹 /payments/complete called with:", { userId, amount, merchantOrderId });
+  const { userId, amount, merchantOrderId } = req.body;
+  console.log("🔹 /payments/complete called with:", { userId, amount, merchantOrderId });
 
-    if (!userId || !amount || !merchantOrderId) {
-        console.warn("⚠️ Missing required fields for completion");
-        return res.status(400).json({ error: "Missing payment info" });
+  if (!userId || !amount || !merchantOrderId) {
+    return res.status(400).json({ error: "Missing payment info" });
+  }
+
+  try {
+    const token = await getAccessToken();
+
+    const verifyResponse = await axios.get(
+      `https://api.phonepe.com/apis/pg/checkout/v2/order/${merchantOrderId}/status?details=true`,
+      { headers: { Authorization: `O-Bearer ${token}`, "Content-Type": "application/json" } }
+    );
+
+    console.log("🔹 Status response from PhonePe:", verifyResponse.data);
+
+    const orderData = verifyResponse.data.data || verifyResponse.data;
+    let successfulPayment = null;
+
+    if (Array.isArray(orderData.paymentDetails)) {
+      successfulPayment = orderData.paymentDetails.find(d => d.state === "COMPLETED");
+    } else if (orderData.state === "COMPLETED") {
+      successfulPayment = orderData;
     }
 
-    try {
-        const token = await getAccessToken();
-        console.log(`🔹 Fetching payment status for merchantOrderId: ${merchantOrderId}`);
-
-        const verifyResponse = await axios.get(
-            `https://api.phonepe.com/apis/pg/checkout/v2/order/${merchantOrderId}/status?details=true`,
-            { headers: { Authorization: `O-Bearer ${token}`, "Content-Type": "application/json" } }
-        );
-
-        console.log("🔹 Status response from PhonePe:", verifyResponse.data);
-
-        const orderData = verifyResponse.data;
-        const paymentDetails = orderData.paymentDetails;
-
-        if (!paymentDetails || paymentDetails.length === 0) {
-            console.warn("⚠️ No payment attempt found for this order");
-            return res.status(400).json({ error: "No payment attempt found" });
-        }
-
- // ----- Find the first successful payment attempt -----
-const successfulPayment = paymentDetails.find(detail => detail.state === "COMPLETED");
-
-if (!successfulPayment) {
-    console.warn("⚠️ No successful payment attempt found");
-    console.log("Full paymentDetails object:", paymentDetails);
-    return res.status(400).json({
+    if (!successfulPayment) {
+      return res.status(400).json({
         error: "Payment not successful",
-        paymentDetails
-    });
-}
-
-const phonePeTxnId = successfulPayment.transactionId;
-const status = successfulPayment.state;
-
-
-console.log("🔹 Extracted phonePeTxnId:", phonePeTxnId, "status:", status);
-console.log("🔹 Full successful payment detail:", successfulPayment);
-
-
-        console.log("🔹 Recording payment in database...");
-        const payment = await Payment.create({ userId, amount, merchantOrderId, phonePeTxnId, status ,useremail });
-
-        console.log("✅ Payment recorded successfully:", payment);
-        res.status(200).json({ success: true, message: "Payment recorded successfully", payment });
-
-    } catch (error) {
-        console.error("❌ Error completing payment:", error.response?.data || error.message);
-        res.status(500).json({ error: "Failed to record payment" });
+        details: orderData
+      });
     }
+
+    const phonePeTxnId = successfulPayment.transactionId;
+    const status = successfulPayment.state;
+
+    const payment = await Payment.create({
+      userId,
+      amount,
+      merchantOrderId,
+      phonePeTxnId,
+      status
+    });
+
+    res.status(200).json({ success: true, message: "Payment recorded successfully", payment });
+
+  } catch (error) {
+    console.error("❌ Error completing payment:", error.response?.data || error.message);
+    res.status(500).json({ error: "Failed to record payment" });
+  }
 });
+
 
 export { startPayment, completePayment };
