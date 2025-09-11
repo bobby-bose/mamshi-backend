@@ -90,10 +90,10 @@ const payload = {
 
 // ----- Complete Payment -----
 const completePayment = asyncErrorHandler(async (req, res, next) => {
-  const { userId, amount, merchantOrderId } = req.body;
-  console.log("🔹 /payments/complete called with:", { userId, amount, merchantOrderId });
+  const { userId, amount, merchantOrderId,useremail } = req.body;
+  console.log("🔹 /payments/complete called with:", { userId, amount, merchantOrderId,useremail });
 
-  if (!userId || !amount || !merchantOrderId) {
+  if (!userId || !amount || !merchantOrderId || useremail) {
     return res.status(400).json({ error: "Missing payment info" });
   }
 
@@ -127,6 +127,7 @@ const completePayment = asyncErrorHandler(async (req, res, next) => {
     const status = successfulPayment.state;
 
     const payment = await Payment.create({
+      useremail,
       userId,
       amount,
       merchantOrderId,
