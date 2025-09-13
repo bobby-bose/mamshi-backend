@@ -1,10 +1,13 @@
 import dotenv from "dotenv";
 dotenv.config();
-import { createOrderAfterPayment } from "../controllers/orderController.js";
+
 import asyncErrorHandler from "../middlewares/asyncErrorHandler.js";
-// import Payment from "../models/paymentModel.js";
+
 import axios from "axios";
 import qs from "querystring";
+import Product from "../models/productModel.js";
+
+
 
 // ----- PhonePe Config -----
 const CLIENT_ID = process.env.CLIENT_ID || "SU2509011920199571786178";
@@ -88,15 +91,16 @@ const payload = {
     }
 });
 
+
+import Order from "../models/orderModel.js";
+
 // ----- Complete Payment -----
-
 const completePayment = asyncErrorHandler(async (req, res, next) => {
-  const { userId, amount, merchantOrderId, useremail } = req.body;
+  const { userId, amount, merchantOrderId, email, products, deliveryDetails } = req.body;
+  console.log("🔹 /payments/complete called with:", { userId, amount, merchantOrderId, email });
 
-  // Get the pending order info (frontend sends it)
-  const pendingOrder = req.body.pendingOrder;
-  if (!userId || !amount || !merchantOrderId || !useremail || !pendingOrder) {
-    return res.status(400).json({ error: "Missing payment or order info" });
+  if (!userId || !amount || !merchantOrderId || !email || !products || !deliveryDetails) {
+    return res.status(400).json({ error: "Missing order/payment info" });
   }
 
   try {
@@ -106,6 +110,8 @@ const completePayment = asyncErrorHandler(async (req, res, next) => {
       `https://api.phonepe.com/apis/pg/checkout/v2/order/${merchantOrderId}/status?details=true`,
       { headers: { Authorization: `O-Bearer ${token}`, "Content-Type": "application/json" } }
     );
+
+    console.log("🔹 Status response from PhonePe:", verifyResponse.data);
 
     const orderData = verifyResponse.data.data || verifyResponse.data;
     let successfulPayment = null;
@@ -117,31 +123,65 @@ const completePayment = asyncErrorHandler(async (req, res, next) => {
     }
 
     if (!successfulPayment) {
-      return res.status(400).json({ error: "Payment not successful", details: orderData });
+      return res.status(400).json({
+        error: "Payment not successful",
+        details: orderData
+      });
     }
 
-    // Payment successful → create order
-    const order = await createOrderAfterPayment({
-      deliveryDetails: pendingOrder.deliveryDetails,
-      products: pendingOrder.products || undefined,
-      productId: pendingOrder.productId,
-      size: pendingOrder.size,
-      color: pendingOrder.color,
-      count: pendingOrder.count,
-      email: useremail
+    // ✅ Payment verified
+    const phonePeTxnId = successfulPayment.transactionId;
+    const status = successfulPayment.state;
+
+    // Build products array from request
+    const orderedProducts = [];
+    for (const item of products) {
+      const productDoc = await Product.findById(item.productId || item.product);
+      if (!productDoc) continue;
+
+     orderedProducts.push({
+  product: productDoc._id,
+  productName: productDoc.Name,   // match schema
+  color: item.color,
+  size: item.size,
+  count: item.count,
+  price: productDoc.Price         // match schema
+});
+
+
+      // reduce stock
+      productDoc.stock = Math.max(0, productDoc.stock - item.count);
+      await productDoc.save();
+    }
+
+    // Create the order directly
+    const order = await Order.create({
+      user: userId,
+      products: orderedProducts,
+      totalAmount: amount,
+      payment: {
+        merchantOrderId,
+        phonePeTxnId,
+        status,
+        paidAt: new Date()
+      },
+      deliveryDetails
     });
 
     res.status(200).json({
       success: true,
       message: "Payment verified and order created successfully",
+      merchantOrderId,
+      phonePeTxnId,
       order
     });
 
   } catch (error) {
     console.error("❌ Error completing payment:", error.response?.data || error.message);
-    res.status(500).json({ error: "Failed to complete payment and create order" });
+    res.status(500).json({ error: "Failed to complete payment" });
   }
 });
+
 
 
 

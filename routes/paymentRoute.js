@@ -4,11 +4,9 @@ const { startPayment, completePayment } = require('../controllers/paymentControl
 const router = express.Router();
 
 // Start a new payment
-router.route('/payments/start').post(startPayment);
+router.post('/payments/start', startPayment);
 
 // Complete payment after user makes payment
-router.route('/payments/complete').post(completePayment);
-
-
+router.post('/payments/complete', completePayment);
 
 module.exports = router;
