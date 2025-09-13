@@ -11,73 +11,67 @@ async function updateStock(id, quantity) {
   await product.save({ validateBeforeSave: false });
 }
 
-// Create Order (single or multiple products)
-exports.createOrder = asyncErrorHandler(async (req, res, next) => {
-  const { deliveryDetails, products, productId, size, color, count } = req.body;
 
+// Create Order AFTER payment is COMPLETED
+exports.createOrderAfterPayment = async ({ deliveryDetails, products, productId, size, color, count, email }) => {
   if (!deliveryDetails || !deliveryDetails.mainMobile) {
-    return next(new ErrorHandler("Delivery mainMobile is required", 400));
+    throw new ErrorHandler("Delivery mainMobile is required", 400);
   }
 
   let orderProducts = [];
   let totalAmount = 0;
 
-  // If multiple products passed in "products" array
   if (products && products.length > 0) {
     for (const item of products) {
       const product = await Product.findById(item.productId);
-      if (!product) return next(new ErrorHandler(`Product ${item.productId} not found`, 404));
-
-      const orderItem = {
+      if (!product) throw new ErrorHandler(`Product ${item.productId} not found`, 404);
+      orderProducts.push({
         product: product._id,
         productName: product.Name,
         size: item.size,
         color: item.color,
         count: item.count || 1,
         price: product.Price
-      };
-      orderProducts.push(orderItem);
+      });
       totalAmount += product.Price * (item.count || 1);
     }
-  } 
-  // If single product passed via productId
-  else if (productId) {
+  } else if (productId) {
     const product = await Product.findById(productId);
-    if (!product) return next(new ErrorHandler("Product Not Found", 404));
-
-    const orderItem = {
+    if (!product) throw new ErrorHandler("Product Not Found", 404);
+    orderProducts.push({
       product: product._id,
       productName: product.Name,
-      size: size,
-      color: color,
+      size,
+      color,
       count: count || 1,
       price: product.Price
-    };
-    orderProducts.push(orderItem);
+    });
     totalAmount += product.Price * (count || 1);
   } else {
-    return next(new ErrorHandler("No products provided", 400));
+    throw new ErrorHandler("No products provided", 400);
   }
-const user = await User.findOne({ email: req.body.email });
-if (!user) return next(new ErrorHandler("User not found", 404));
 
-const order = await Order.create({
-  user: user._id,   // <-- ObjectId
-  products: orderProducts,
-  totalAmount,
-  payment: { status: "PENDING" },
-  deliveryDetails,
-  luckyDrawCode: null,
-  purchaseNumber: null
-});
+  const user = await User.findOne({ email });
+  if (!user) throw new ErrorHandler("User not found", 404);
 
+  const purchaseNumber = (await Order.countDocuments({ "payment.status": "COMPLETED" })) + 1;
 
-  res.status(201).json({
-    success: true,
-    message: "Order added successfully",
-    order
+  const order = await Order.create({
+    user: user._id,
+    products: orderProducts,
+    totalAmount,
+    payment: { status: "COMPLETED", paidAt: Date.now() },
+    deliveryDetails,
+    purchaseNumber,
+    luckyDrawCode: `SLOUCH-COUPON-${purchaseNumber.toString().padStart(5, '0')}`
   });
-});
+
+  for (const item of order.products) {
+    await updateStock(item.product, item.count);
+  }
+
+  return order;
+};
 
 
 // Get Single Order Details
@@ -120,110 +114,5 @@ exports.getAllOrders = asyncErrorHandler(async (req, res, next) => {
   });
 });
 
-// Update Order (Payment completion or shipping status)
-exports.updateOrder = asyncErrorHandler(async (req, res, next) => {
-  const order = await Order.findById(req.params.id);
-
-  if (!order) return next(new ErrorHandler("Order Not Found", 404));
-
-  // If updating payment to COMPLETED
-if (req.body.paymentStatus && req.body.paymentStatus === "COMPLETED") {
-    // 1. Calculate totalAmount and products from payload (same logic as createOrder)
-    const { products, productId, size, color, count, deliveryDetails } = req.body;
-
-    if (!deliveryDetails || !deliveryDetails.mainMobile)
-        return next(new ErrorHandler("Delivery mainMobile is required", 400));
-
-    let orderProducts = [];
-    let totalAmount = 0;
-
-    if (products && products.length > 0) {
-        for (const item of products) {
-            const product = await Product.findById(item.productId);
-            if (!product) return next(new ErrorHandler(`Product ${item.productId} not found`, 404));
-            orderProducts.push({
-                product: product._id,
-                productName: product.Name,
-                size: item.size,
-                color: item.color,
-                count: item.count || 1,
-                price: product.Price
-            });
-            totalAmount += product.Price * (item.count || 1);
-        }
-    } else if (productId) {
-        const product = await Product.findById(productId);
-        if (!product) return next(new ErrorHandler("Product Not Found", 404));
-        orderProducts.push({
-            product: product._id,
-            productName: product.Name,
-            size,
-            color,
-            count: count || 1,
-            price: product.Price
-        });
-        totalAmount += product.Price * (count || 1);
-    } else {
-        return next(new ErrorHandler("No products provided", 400));
-    }
-
-    // 2. Find the user
-    const user = await User.findOne({ email: req.body.email });
-    if (!user) return next(new ErrorHandler("User not found", 404));
-
-    // 3. Create order now
-    order = await Order.create({
-        user: user._id,
-        products: orderProducts,
-        totalAmount,
-        payment: { status: "COMPLETED", paidAt: Date.now() },
-        deliveryDetails,
-        purchaseNumber: (await Order.countDocuments({ "payment.status": "COMPLETED" })) + 1
-    });
-
-    // 4. Generate luckyDrawCode
-    const couponNumber = order.purchaseNumber.toString().padStart(5, "0");
-    order.luckyDrawCode = `SLOUCH-COUPON-${couponNumber}`;
-    await order.save({ validateBeforeSave: false });
-
-    return res.status(201).json({ success: true, order });
-}
 
 
-  // Update shipping / delivery status
-  if (req.body.status) {
-    if (order.orderStatus === "Delivered") {
-      return next(new ErrorHandler("Already Delivered", 400));
-    }
-
-    if (req.body.status === "Shipped") {
-      order.shippedAt = Date.now();
-      for (const i of order.products) {
-        await updateStock(i.product, i.count);
-      }
-    }
-
-    order.orderStatus = req.body.status;
-    if (req.body.status === "Delivered") order.deliveredAt = Date.now();
-  }
-
-  await order.save({ validateBeforeSave: false });
-
-  res.status(200).json({
-    success: true,
-    order
-  });
-});
-
-// Delete Order --- ADMIN
-exports.deleteOrder = asyncErrorHandler(async (req, res, next) => {
-  const order = await Order.findById(req.params.id);
-
-  if (!order) return next(new ErrorHandler("Order Not Found", 404));
-
-  await order.remove();
-
-  res.status(200).json({
-    success: true
-  });
-});

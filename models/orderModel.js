@@ -32,7 +32,11 @@ const orderSchema = new mongoose.Schema({
     altMobile: { type: String }
   },
 
-  luckyDrawCode: { type: String, unique: true, sparse: true },  // raffle coupon code
+  luckyDrawCode: {
+  type: String,
+
+
+},
 
   purchaseNumber: { type: Number, unique: true, sparse: true },  // Nth completed purchase
 

@@ -1,6 +1,6 @@
 import dotenv from "dotenv";
 dotenv.config();
-
+import { createOrderAfterPayment } from "../controllers/orderController.js";
 import asyncErrorHandler from "../middlewares/asyncErrorHandler.js";
 // import Payment from "../models/paymentModel.js";
 import axios from "axios";
@@ -89,12 +89,14 @@ const payload = {
 });
 
 // ----- Complete Payment -----
-const completePayment = asyncErrorHandler(async (req, res, next) => {
-  const { userId, amount, merchantOrderId,useremail } = req.body;
-  console.log("🔹 /payments/complete called with:", { userId, amount, merchantOrderId,useremail });
 
-  if (!userId || !amount || !merchantOrderId || useremail) {
-    return res.status(400).json({ error: "Missing payment info" });
+const completePayment = asyncErrorHandler(async (req, res, next) => {
+  const { userId, amount, merchantOrderId, useremail } = req.body;
+
+  // Get the pending order info (frontend sends it)
+  const pendingOrder = req.body.pendingOrder;
+  if (!userId || !amount || !merchantOrderId || !useremail || !pendingOrder) {
+    return res.status(400).json({ error: "Missing payment or order info" });
   }
 
   try {
@@ -104,8 +106,6 @@ const completePayment = asyncErrorHandler(async (req, res, next) => {
       `https://api.phonepe.com/apis/pg/checkout/v2/order/${merchantOrderId}/status?details=true`,
       { headers: { Authorization: `O-Bearer ${token}`, "Content-Type": "application/json" } }
     );
-
-    console.log("🔹 Status response from PhonePe:", verifyResponse.data);
 
     const orderData = verifyResponse.data.data || verifyResponse.data;
     let successfulPayment = null;
@@ -117,31 +117,32 @@ const completePayment = asyncErrorHandler(async (req, res, next) => {
     }
 
     if (!successfulPayment) {
-      return res.status(400).json({
-        error: "Payment not successful",
-        details: orderData
-      });
+      return res.status(400).json({ error: "Payment not successful", details: orderData });
     }
 
-    const phonePeTxnId = successfulPayment.transactionId;
-    const status = successfulPayment.state;
+    // Payment successful → create order
+    const order = await createOrderAfterPayment({
+      deliveryDetails: pendingOrder.deliveryDetails,
+      products: pendingOrder.products || undefined,
+      productId: pendingOrder.productId,
+      size: pendingOrder.size,
+      color: pendingOrder.color,
+      count: pendingOrder.count,
+      email: useremail
+    });
 
-    // const payment = await Payment.create({
-    //   useremail,
-    //   userId,
-    //   amount,
-    //   merchantOrderId,
-    //   phonePeTxnId,
-    //   status
-    // });
-
-    res.status(200).json({ success: true, message: "Payment recorded successfully" });
+    res.status(200).json({
+      success: true,
+      message: "Payment verified and order created successfully",
+      order
+    });
 
   } catch (error) {
     console.error("❌ Error completing payment:", error.response?.data || error.message);
-    res.status(500).json({ error: "Failed to record payment" });
+    res.status(500).json({ error: "Failed to complete payment and create order" });
   }
 });
+
 
 
 export { startPayment, completePayment };
