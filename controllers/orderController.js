@@ -127,18 +127,68 @@ exports.updateOrder = asyncErrorHandler(async (req, res, next) => {
   if (!order) return next(new ErrorHandler("Order Not Found", 404));
 
   // If updating payment to COMPLETED
-  if (req.body.paymentStatus && req.body.paymentStatus === "COMPLETED" && order.payment.status !== "COMPLETED") {
-    order.payment.status = "COMPLETED";
-    order.payment.paidAt = Date.now();
+if (req.body.paymentStatus && req.body.paymentStatus === "COMPLETED") {
+    // 1. Calculate totalAmount and products from payload (same logic as createOrder)
+    const { products, productId, size, color, count, deliveryDetails } = req.body;
 
-    // Assign purchaseNumber
-    const completedCount = await Order.countDocuments({ "payment.status": "COMPLETED" });
-    order.purchaseNumber = completedCount + 1;
+    if (!deliveryDetails || !deliveryDetails.mainMobile)
+        return next(new ErrorHandler("Delivery mainMobile is required", 400));
 
-    // Generate sequential luckyDrawCode
-    const couponNumber = order.purchaseNumber.toString().padStart(5, '0'); // 00001 → 50000
+    let orderProducts = [];
+    let totalAmount = 0;
+
+    if (products && products.length > 0) {
+        for (const item of products) {
+            const product = await Product.findById(item.productId);
+            if (!product) return next(new ErrorHandler(`Product ${item.productId} not found`, 404));
+            orderProducts.push({
+                product: product._id,
+                productName: product.Name,
+                size: item.size,
+                color: item.color,
+                count: item.count || 1,
+                price: product.Price
+            });
+            totalAmount += product.Price * (item.count || 1);
+        }
+    } else if (productId) {
+        const product = await Product.findById(productId);
+        if (!product) return next(new ErrorHandler("Product Not Found", 404));
+        orderProducts.push({
+            product: product._id,
+            productName: product.Name,
+            size,
+            color,
+            count: count || 1,
+            price: product.Price
+        });
+        totalAmount += product.Price * (count || 1);
+    } else {
+        return next(new ErrorHandler("No products provided", 400));
+    }
+
+    // 2. Find the user
+    const user = await User.findOne({ email: req.body.email });
+    if (!user) return next(new ErrorHandler("User not found", 404));
+
+    // 3. Create order now
+    order = await Order.create({
+        user: user._id,
+        products: orderProducts,
+        totalAmount,
+        payment: { status: "COMPLETED", paidAt: Date.now() },
+        deliveryDetails,
+        purchaseNumber: (await Order.countDocuments({ "payment.status": "COMPLETED" })) + 1
+    });
+
+    // 4. Generate luckyDrawCode
+    const couponNumber = order.purchaseNumber.toString().padStart(5, "0");
     order.luckyDrawCode = `SLOUCH-COUPON-${couponNumber}`;
-  }
+    await order.save({ validateBeforeSave: false });
+
+    return res.status(201).json({ success: true, order });
+}
+
 
   // Update shipping / delivery status
   if (req.body.status) {
