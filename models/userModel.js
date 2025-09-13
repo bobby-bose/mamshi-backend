@@ -1,88 +1,17 @@
-const mongoose = require('mongoose');
-const validator = require('validator');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
+const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema({
-    firstName: {
-        type: String,
-       
-    },
-    lastName: {
-        type: String,
-        default: ""
-    },
-    name: { // optional, can keep full name for convenience
-        type: String,
-        default: function() { return this.firstName + " " + this.lastName; }
-    },
-    email: {
-        type: String,
-       
-        unique: true,
-        
-    },
-    mobileNumber: {
-        type: String,
-        required: [true, "Please Enter Your Mobile Number"],
-        unique: true,
-    },
-    address: {
-        type: String,
-        default: ""
-    },
-    gender: {
-        type: String,
-        
-    },
-    password: {
-        type: String,
-        
-        minlength: 6,
-        select: false // don’t return password by default
-    },
-    avatar: {
-        data: Buffer,
-        contentType: String
-    },
-    role: {
-        type: String,
-        default: "user",
-    },
-    createdAt: {
-        type: Date,
-        default: Date.now,
-    },
-    resetPasswordToken: String,
-    resetPasswordExpire: Date,
+  name: { type: String, required: true, trim: true },
+  email: { type: String, required: true, unique: true, lowercase: true },
+  phone: { type: String, trim: true },
+  address: {
+    street: String,
+    city: String,
+    state: String,
+    country: String,
+    pincode: String
+  },
+  createdAt: { type: Date, default: Date.now }
 });
 
-// Hash password before saving
-userSchema.pre("save", async function (next) {
-    if (!this.isModified("password")) return next();
-    this.password = await bcrypt.hash(this.password, 10);
-    next();
-});
-
-// JWT token method
-userSchema.methods.getJWTToken = function () {
-    return jwt.sign({ id: this._id }, process.env.JWT_SECRET, {
-        expiresIn: process.env.JWT_EXPIRE
-    });
-}
-
-// Compare password
-userSchema.methods.comparePassword = async function (enteredPassword) {
-    return await bcrypt.compare(enteredPassword, this.password);
-}
-
-// Generate password reset token
-userSchema.methods.getResetPasswordToken = async function () {
-    const resetToken = crypto.randomBytes(20).toString("hex");
-    this.resetPasswordToken = crypto.createHash("sha256").update(resetToken).digest("hex");
-    this.resetPasswordExpire = Date.now() + 15 * 60 * 1000; // 15 minutes
-    return resetToken;
-}
-
-module.exports = mongoose.model('User', userSchema);
+module.exports = mongoose.model("User", userSchema);

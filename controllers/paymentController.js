@@ -2,7 +2,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import asyncErrorHandler from "../middlewares/asyncErrorHandler.js";
-import Payment from "../models/paymentModel.js";
+// import Payment from "../models/paymentModel.js";
 import axios from "axios";
 import qs from "querystring";
 
@@ -126,16 +126,16 @@ const completePayment = asyncErrorHandler(async (req, res, next) => {
     const phonePeTxnId = successfulPayment.transactionId;
     const status = successfulPayment.state;
 
-    const payment = await Payment.create({
-      useremail,
-      userId,
-      amount,
-      merchantOrderId,
-      phonePeTxnId,
-      status
-    });
+    // const payment = await Payment.create({
+    //   useremail,
+    //   userId,
+    //   amount,
+    //   merchantOrderId,
+    //   phonePeTxnId,
+    //   status
+    // });
 
-    res.status(200).json({ success: true, message: "Payment recorded successfully", payment });
+    res.status(200).json({ success: true, message: "Payment recorded successfully" });
 
   } catch (error) {
     console.error("❌ Error completing payment:", error.response?.data || error.message);
