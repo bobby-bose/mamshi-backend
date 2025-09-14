@@ -14,8 +14,8 @@ import Product from "../models/productModel.js";
 
 
 // ----- PhonePe Config -----
-const CLIENT_ID = process.env.CLIENT_ID || "TEST-M23B0ZWBZWVE0_25090";
-const CLIENT_SECRET = process.env.CLIENT_SECRET || "ZTZlMTI3NTAtMWUxMC00OTk1LTkzYTgtYjc2N2MyYTJlNTBh";
+const CLIENT_ID = process.env.CLIENT_ID || "SU2509011920199571786178";
+const CLIENT_SECRET = process.env.CLIENT_SECRET || "fbf66a20-f2fc-4df8-b21b-242f5de3d741";
 const CLIENT_VERSION = process.env.CLIENT_VERSION || "1";
 const userId = "user_" + Math.floor(Math.random() * 1000000);
 
@@ -31,7 +31,7 @@ async function getAccessToken() {
         });
 
         const response = await axios.post(
-            `https://api-preprod.phonepe.com/apis/pg-sandbox/v1/oauth/token`,
+            `https://api.phonepe.com/apis/identity-manager/v1/oauth/token`,
             requestBody,
             { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
         );
@@ -66,7 +66,7 @@ const startPayment = asyncErrorHandler(async (req, res, next) => {
         const token = await getAccessToken();
         const merchantOrderId = "order_" + Date.now();
    
-const redirectURL = `http://localhost:3000/payment-success/${merchantOrderId}`;
+const redirectURL = `https://slouch.netlify.app/payment-success/${merchantOrderId}`;
 
 const payload = {
     merchantOrderId,
@@ -87,7 +87,7 @@ const payload = {
         console.log("🔹 Sending payment request to PhonePe:", payload);
 
         const response = await axios.post(
-            `https://api-preprod.phonepe.com/apis/pg-sandbox/checkout/v2/pay`,
+            `https://api.phonepe.com/apis/pg/checkout/v2/pay`,
             payload,
             { headers: { Authorization: `O-Bearer ${token}`, "Content-Type": "application/json" } }
         );
@@ -136,7 +136,7 @@ const completePayment = asyncErrorHandler(async (req, res, next) => {
     const token = await getAccessToken();
 
     const verifyResponse = await axios.get(
-     `https://api-preprod.phonepe.com/apis/pg-sandbox/checkout/v2/order/${merchantOrderId}/status?details=true`,
+     `https://api.phonepe.com/apis/pg/checkout/v2/order/{merchantOrderId}/status?details=true`,
       { headers: { Authorization: `O-Bearer ${token}`, "Content-Type": "application/json" } }
     );
 
