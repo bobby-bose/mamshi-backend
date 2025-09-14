@@ -1,51 +1,55 @@
-const express = require('express');
-const bodyParser = require('body-parser');
-const cookieParser = require('cookie-parser');
-const fileUpload = require('express-fileupload');
-const errorMiddleware = require('./middlewares/error');
-const cors = require('cors');
-const app = express();
-const path = require('path');
+const express = require("express");
+const bodyParser = require("body-parser");
+const cookieParser = require("cookie-parser");
+const cors = require("cors");
+const path = require("path");
+const errorMiddleware = require("./middlewares/error");
 
+// Import routes
+const userRoutes = require("./routes/userRoute");
+const productRoutes = require("./routes/productRoute");
+const paymentRoutes = require("./routes/paymentRoute");
+const giveawayRoutes = require("./routes/giveaway");
+const addProductRoutes = require("./routes/addProduct");
+
+const app = express();
+
+// Allowed origins for CORS
 const allowedOrigins = [
-  "http://localhost:3000",     // React dev server
-  "https://slouch.netlify.app" // Production frontend
+  "http://localhost:3000",      // React dev server
+  "https://slouch.netlify.app", // Production frontend
 ];
 
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  })
+);
 
-
+// Middleware
 app.use(express.json());
 app.use(cookieParser());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-
-const user = require('./routes/userRoute');
-const product = require('./routes/productRoute');
-const order = require('./routes/orderRoute');
-const payment = require('./routes/paymentRoute');
-const giveaway = require('./routes/giveawayroute');
-const addProduct = require('./routes/addProduct');
+// Static files (uploads)
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-app.use('/api/v1', user);
-app.use('/api/v1', product);
-app.use('/api/v1', order);
-app.use('/api/v1', payment);
-app.use('/api/v1', giveaway);
-app.use('/api/v1', addProduct);
+// API routes
+app.use("/api/v1", userRoutes);
+app.use("/api/v1", productRoutes);
 
+app.use("/api/v1", paymentRoutes);
+app.use("/api/v1", giveawayRoutes);
+app.use("/api/v1", addProductRoutes);
 
-// error middleware
+// Error middleware
 app.use(errorMiddleware);
 
 module.exports = app;
