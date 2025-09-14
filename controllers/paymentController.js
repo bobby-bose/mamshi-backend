@@ -136,7 +136,7 @@ const completePayment = asyncErrorHandler(async (req, res, next) => {
     const token = await getAccessToken();
 
     const verifyResponse = await axios.get(
-     `https://api.phonepe.com/apis/pg/checkout/v2/order/{merchantOrderId}/status?details=true`,
+     `https://api.phonepe.com/apis/pg/checkout/v2/order/${merchantOrderId}/status?details=true`,
       { headers: { Authorization: `O-Bearer ${token}`, "Content-Type": "application/json" } }
     );
 
