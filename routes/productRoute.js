@@ -34,10 +34,10 @@ router.route('/product/:productId').get(async (req, res, next) => {
         return next(new ErrorHandler("Failed to fetch productDetails items", 500));
     }
 });
-router.route('/wishlist/:productId/:mobileNumber').post(async (req, res, next) => {
+router.route('/wishlist/add').post(async (req, res, next) => {
   try {
-    const { productId, mobileNumber } = req.params;
-    const { size, color, count } = req.body; // now also get count
+  
+    const { size, color, count ,mobileNumber ,productId } = req.body; // now also get count
 
     // Basic validations
     if (!productId || !mobileNumber) {

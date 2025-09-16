@@ -4,7 +4,12 @@ const productSchema = new mongoose.Schema({
   Name: String,
   Description: String,
   Price: Number,
-  colors: [String],
+  colors: [
+    {
+      name: { type: String, required: true },
+      code: { type: String, required: true }
+    }
+  ],
   stock: Number,
   S: Boolean,
   M: Boolean,

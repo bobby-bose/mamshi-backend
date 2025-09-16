@@ -1,15 +1,15 @@
-import dotenv from "dotenv";
+const dotenv = require("dotenv");
+
 dotenv.config();
 
-import Counter from "../models/counterModel.js";
-
-import nodemailer from "nodemailer";
-
-import asyncErrorHandler from "../middlewares/asyncErrorHandler.js";
-import User from "../models/userModel.js";
-import axios from "axios";
-import qs from "querystring";
-import Product from "../models/productModel.js";
+const Counter = require("../models/counterModel");
+const nodemailer = require("nodemailer");
+const asyncErrorHandler = require("../middlewares/asyncErrorHandler");
+const User = require("../models/userModel");
+const axios = require("axios");
+const qs = require("querystring");
+const Product = require("../models/productModel");
+const Order = require("../models/orderModel");
 
 
 
@@ -107,10 +107,6 @@ const payload = {
 
 });
 
-
-import Order from "../models/orderModel.js";
-
-// ----- Complete Payment -----
 const completePayment = asyncErrorHandler(async (req, res, next) => {
   const { amount, merchantOrderId, email, products, deliveryDetails } = req.body;
   console.log("🔹 /payments/complete called with:", {  amount, merchantOrderId, email,products });
