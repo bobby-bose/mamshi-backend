@@ -257,7 +257,7 @@ sendCoupon(email, couponCode);
 
 
 
-export async function sendCoupon(email, couponCode) {
+async function sendCoupon(email, couponCode) {
     if (couponCode.includes(".")) {
     console.warn(`⚠️ Skipping coupon with invalid code: ${couponCode}`);
     return { success: false, error: "Invalid coupon code (decimal found)" };
@@ -288,4 +288,8 @@ export async function sendCoupon(email, couponCode) {
   }
 }
 
-export { startPayment, completePayment };
+module.exports = {
+  startPayment,
+  completePayment,
+  sendCoupon
+};
