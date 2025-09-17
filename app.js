@@ -18,16 +18,30 @@ const app = express();
 const allowedOrigins = [
   "http://localhost:3000",      // React dev server
   "https://slouch.netlify.app", // Production frontend
+  "https://143.110.179.42",
 ];
+
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
+      // If request has no origin (Postman, curl), allow it
+      if (!origin) return callback(null, true);
+
+      // Allow requests from allowed frontend domains
+      if (allowedFrontendOrigins.includes(origin)) {
+        return callback(null, true);
       }
+
+      // Optional: allow mobile devices accessing backend via raw IP (for testing)
+      // Comment out in production for security
+      const allowedBackendIPs = ["https://143.110.179.42"];
+      if (allowedBackendIPs.includes(origin)) {
+        return callback(null, true);
+      }
+
+      console.warn(`CORS blocked request from origin: ${origin}`);
+      callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
   })
