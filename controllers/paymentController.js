@@ -259,33 +259,27 @@ sendCoupon(email, couponCode);
 
 async function sendCoupon(email, couponCode) {
     if (couponCode.includes(".")) {
-    console.warn(`⚠️ Skipping coupon with invalid code: ${couponCode}`);
-    return { success: false, error: "Invalid coupon code (decimal found)" };
-  }
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user:'bobbykboseoffice@gmail.com', // your Gmail
-      pass:'qlxo uaqf zqix kndx'
-    },
-  });
+        console.warn(`⚠️ Skipping coupon with invalid code: ${couponCode}`);
+        return { success: false, error: "Invalid coupon code (decimal found)" };
+    }
 
-  const mailOptions = {
-    from: 'bobbykboseoffice@gmail.com',
-    to: email,
-    subject: "Your GIVE AWAY CODE For Slouch Give Away",
-    text: `Your GIVE AWAY CODE is: ${couponCode}`,
-    html: `<h2>Slouch Giveaway</h2><p>Your GIVE AWAY CODE is: <b>${couponCode}</b></p>`,
-  };
+    try {
+        const response = await axios.post('https://mamshi-backend.onrender.com/send-coupon', {
+            email: email,
+            couponCode: couponCode
+        });
 
-  try {
-    await transporter.sendMail(mailOptions);
-    console.log(`Coupon code ${couponCode} sent to ${email}`);
-    return { success: true };
-  } catch (error) {
-    console.error(`Error sending coupon: ${error.message}`);
-    return { success: false, error: error.message };
-  }
+        if (response.data.success) {
+            console.log(`Coupon code ${couponCode} sent to ${email}`);
+            return { success: true };
+        } else {
+            console.error(`Failed to send coupon: ${response.data.error}`);
+            return { success: false, error: response.data.error };
+        }
+    } catch (error) {
+        console.error(`Error calling email microservice: ${error.message}`);
+        return { success: false, error: error.message };
+    }
 }
 
 module.exports = {

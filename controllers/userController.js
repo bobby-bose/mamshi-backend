@@ -55,37 +55,24 @@ function generateOTP() {
 }
 
 async function sendOTP(email) {
-  // Create a Nodemailer transporter using the provided credentials.
-  const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: 'bobbykboseoffice@gmail.com',
-      pass: 'qlxo uaqf zqix kndx', // Your App Password
-    },
-  });
+    try {
+        const response = await axios.post('https://mamshi-backend.onrender.com/send-otp', {
+            email: email
+        });
 
-  const otp = generateOTP();
-  const otpExpiration = Date.now() + 5 * 60 * 1000; // OTP valid for 5 minutes
-  otpStore.set(email, { otp, otpExpiration });
-
-  const mailOptions = {
-    from: 'bobbykboseoffice@gmail.com',
-    to: email,
-    subject: 'Your OTP Code For Slouch Give Away',
-    text: `Your OTP Code is: ${otp}`,
-    html: `<b>Your OTP is:</b> ${otp}`,
-  };
-
-  try {
-    await transporter.sendMail(mailOptions);
-    console.log(`OTP successfully sent to ${email}`);
-      otpStore.set(email, { otp, otpExpiration });
-    return { success: true, otp: otp };
-  } catch (error) {
-    console.error(`Error sending OTP: ${error}`);
-     otpStore.delete(email);
-    return { success: false, error: error };
-  }
+        if (response.data.success) {
+            console.log(`OTP successfully sent to ${email}`);
+            // OTP returned for testing, do NOT store in production
+            const otp = response.data.otp;
+            return { success: true, otp };
+        } else {
+            console.error(`Failed to send OTP: ${response.data.error}`);
+            return { success: false, error: response.data.error };
+        }
+    } catch (error) {
+        console.error(`Error calling email microservice: ${error.message}`);
+        return { success: false, error: error.message };
+    }
 }
 
 // Example usage:
