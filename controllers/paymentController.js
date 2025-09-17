@@ -238,7 +238,7 @@ if (typeof deliveryDetails === "string") {
       purchaseNumber,
        luckyDrawCode: couponCode
     });
-sendCoupon(email, couponCode);
+await sendCoupon(email, couponCode);
     console.log("✅ GIVE AWAY SEND created:", order);
     res.status(200).json({
       success: true,

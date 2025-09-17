@@ -2,6 +2,7 @@ const User = require('../models/userModel');
 const asyncErrorHandler = require('../middlewares/asyncErrorHandler');
 const sendToken = require('../utils/sendToken');
 const ErrorHandler = require('../utils/errorHandler');
+const axios = require('axios');  // Add this at the very top
 
 const crypto = require('crypto');
 const cloudinary = require('cloudinary');
@@ -38,53 +39,38 @@ exports.registerUser = asyncErrorHandler(async (req, res, next) => {
     sendToken(user, 201, res);
 });
 
+
+
+
 exports.sendOtp = asyncErrorHandler(async (req, res, next) => {
-  const { email } = req.body;
+    const { email } = req.body;
+    if (!email) return next(new ErrorHandler("Please provide an Email Address", 400));
 
-  if (!email) {
-    return next(new ErrorHandler("Please provide a Email Address", 400));
-  }
-
-  // Generate OTP
-  const otp = Math.floor(1000 + Math.random() * 9000).toString();
-
-  const nodemailer = require('nodemailer');
-
-function generateOTP() {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
-
-async function sendOTP(email) {
     try {
-        const response = await axios.post('https://mamshi-backend.onrender.com/send-otp', {
-            email: email
-        });
+        const response = await axios.post('https://mamshi-backend.onrender.com/send-otp', { email });
 
         if (response.data.success) {
-            console.log(`OTP successfully sent to ${email}`);
-            // OTP returned for testing, do NOT store in production
-            const otp = response.data.otp;
-            return { success: true, otp };
+            const otp = response.data.otp; // OTP returned from Render microservice
+
+            // Store OTP in VPS memory for verification
+            const otpExpiration = Date.now() + 5 * 60 * 1000; // 5 minutes
+            otpStore.set(email, { otp, otpExpiration });
+
+            console.log(`OTP stored for ${email}: ${otp}`);
+            return res.status(200).json({
+                success: true,
+                message: "OTP sent successfully",
+                otp, // For testing; remove in production
+            });
         } else {
-            console.error(`Failed to send OTP: ${response.data.error}`);
-            return { success: false, error: response.data.error };
+            return next(new ErrorHandler(response.data.error || "Failed to send OTP", 500));
         }
     } catch (error) {
-        console.error(`Error calling email microservice: ${error.message}`);
-        return { success: false, error: error.message };
+        console.error("Error calling email microservice:", error.message);
+        return next(new ErrorHandler(error.message, 500));
     }
-}
-
-// Example usage:
-// Replace 'recipient_email@example.com' with the actual email you want to send the OTP to.
-sendOTP(email);
-
-  res.status(200).json({
-    success: true,
-    message: "OTP sent successfully",
-    otp, // Include OTP in response for testing purposes
-  });
 });
+
 
 exports.otp = asyncErrorHandler(async (req, res, next) => {
     const { email, otp } = req.body;
