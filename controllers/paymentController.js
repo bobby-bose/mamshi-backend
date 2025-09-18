@@ -58,7 +58,7 @@ const startPayment = asyncErrorHandler(async (req, res, next) => {
     console.log("🔹 /payments/start called with:", { amount, useremail });
 
     // Validate amount
-    const parsedAmount = 100;
+    const parsedAmount = amount * 100;
     if (!amount || isNaN(parsedAmount) || parsedAmount <= 0) {
         console.warn("⚠️ Invalid amount:", amount);
         return res.status(400).json({ error: "Valid amount is required" });

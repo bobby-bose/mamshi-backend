@@ -58,7 +58,7 @@ const startBulkPayment = asyncErrorHandler(async (req, res, next) => {
     console.log("🔹 /payments/start-cart called with:", { amount, useremail, products });
 
     // Validate amount
-    const parsedAmount = parseFloat(amount);
+    const parsedAmount = parseFloat(amount) * 100;
     if (!amount || isNaN(parsedAmount) || parsedAmount <= 0) {
         console.warn("⚠️ Invalid amount:", amount);
         return res.status(400).json({ error: "Valid amount is required" });
