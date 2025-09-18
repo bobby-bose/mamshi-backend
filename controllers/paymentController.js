@@ -54,12 +54,19 @@ async function getNextPurchaseNumber() {
 }
 // ----- Start Payment -----
 const startPayment = asyncErrorHandler(async (req, res, next) => {
-    const { amount,  useremail } = req.body;
-    console.log("🔹 /payments/start called with:", { amount });
+    const { amount, useremail } = req.body;
+    console.log("🔹 /payments/start called with:", { amount, useremail });
 
-    if (!amount ) {
-        console.warn("⚠️ Missing amount");
-        return res.status(400).json({ error: "Amount and  required" });
+    // Validate amount
+    const parsedAmount = parseFloat(amount);
+    if (!amount || isNaN(parsedAmount) || parsedAmount <= 0) {
+        console.warn("⚠️ Invalid amount:", amount);
+        return res.status(400).json({ error: "Valid amount is required" });
+    }
+
+    if (!useremail) {
+        console.warn("⚠️ Missing user email");
+        return res.status(400).json({ error: "User email is required" });
     }
 
     try {
@@ -70,7 +77,7 @@ const redirectURL = `https://slouch.netlify.app/payment-success/${merchantOrderI
 
 const payload = {
     merchantOrderId,
-    amount,
+    amount: parsedAmount, // Use validated amount
     expireAfter: 1200,
     metaInfo: { userId },
     paymentFlow: {
@@ -109,23 +116,28 @@ const payload = {
 
 const completePayment = asyncErrorHandler(async (req, res, next) => {
   const { amount, merchantOrderId, email, products, deliveryDetails } = req.body;
-  console.log("🔹 /payments/complete called with:", {  amount, merchantOrderId, email,products });
+  console.log("🔹 /payments/complete called with:", { amount, merchantOrderId, email, products });
 
- if (!amount || !merchantOrderId || !email || !products || !deliveryDetails) {
+  // Validate amount
+  const parsedAmount = parseFloat(amount);
+  if (!amount || isNaN(parsedAmount) || parsedAmount <= 0) {
+    console.error("❌ Invalid amount:", amount);
+    return res.status(400).json({ error: "Valid amount is required" });
+  }
+
+  // Check for missing required fields
   const missingFields = [];
-
-  if (!amount) missingFields.push("amount");
   if (!merchantOrderId) missingFields.push("merchantOrderId");
   if (!email) missingFields.push("email");
   if (!products) missingFields.push("products");
   if (!deliveryDetails) missingFields.push("deliveryDetails");
 
-  console.error("❌ Missing fields:", missingFields.join(", "));
-
-  return res.status(400).json({ 
-    error: `Missing order/payment info: ${missingFields.join(", ")}`
-  });
-}
+  if (missingFields.length > 0) {
+    console.error("❌ Missing fields:", missingFields.join(", "));
+    return res.status(400).json({ 
+      error: `Missing required fields: ${missingFields.join(", ")}`
+    });
+  }
 
 
   try {
@@ -224,19 +236,18 @@ if (typeof deliveryDetails === "string") {
  const couponCode=`SLOUCH-COUPON-${purchaseNumber.toString().padStart(5, '0')}`;
     // Create the order directly
     const order = await Order.create({
-       user: userDoc._id
-,
+       user: userDoc._id,
       products: orderedProducts,
-      totalAmount: amount,
+      totalAmount: parsedAmount, // Use validated amount
       payment: {
         merchantOrderId,
         phonePeTxnId,
         status,
         paidAt: new Date()
       },
-      deliveryDetails:deliveryInfo,
+      deliveryDetails: deliveryInfo,
       purchaseNumber,
-       luckyDrawCode: couponCode
+      luckyDrawCode: couponCode
     });
 await sendCoupon(email, couponCode);
     console.log("✅ GIVE AWAY SEND created:", order);
